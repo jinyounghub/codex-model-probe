@@ -13,6 +13,25 @@ EN = {
     "기존 프록시 결과 감시 중": "Watching an existing proxy result file",
     "중지됨 · 응답 기록 대기": "Stopped · waiting for response records",
     "실시간 캡처 설정": "Live capture settings",
+    "빠른 시작": "Quick start",
+    "간편 연결을 누르면 프록시와 인증서를 준비합니다. Codex 앱을 완전히 닫으면 자동으로 다시 열어 연결합니다.":
+        "Click Quick connect to prepare the proxy and certificate. Close the Codex app completely; it will reopen and connect automatically.",
+    "간편 연결 시작": "Quick connect",
+    "연결 중지": "Stop connection",
+    "고급 설정 보기": "Show advanced settings",
+    "고급 설정 숨기기": "Hide advanced settings",
+    "프록시와 인증서를 준비하는 중": "Preparing proxy and certificate",
+    "프록시가 시작되지 않았습니다. 고급 설정에서 오류 메시지를 확인하세요.":
+        "The proxy did not start. Check the error message in advanced settings.",
+    "프록시 또는 인증서 준비 시간이 초과됐습니다.": "Proxy or certificate setup timed out.",
+    "인증서 신뢰 확인": "Confirm certificate trust",
+    "이 PC에서 생성된 mitmproxy 인증서를 현재 사용자 신뢰 루트에 추가합니다. 추가하면 이 프록시가 해당 사용자의 HTTPS 통신을 해독할 수 있습니다. 인증서 SHA-256: {fingerprint}\n\n계속할까요?":
+        "Add this PC's mitmproxy certificate to the Current User trusted roots. This lets the proxy decrypt HTTPS traffic for this user. Certificate SHA-256: {fingerprint}\n\nContinue?",
+    "인증서 설치가 취소됐습니다": "Certificate installation canceled",
+    "인증서를 현재 사용자 저장소에 설치하는 중": "Installing certificate in the Current User store",
+    "간편 연결 실패": "Quick connection failed",
+    "프록시로 열린 Codex 앱을 먼저 닫으세요. 지금 프록시를 중지하시겠습니까?":
+        "Close the Codex app opened through the proxy first. Stop the proxy now?",
     "결과 파일": "Results file",
     "캡처 방식": "Capture mode",
     "대상 프로세스": "Target process",
@@ -53,8 +72,8 @@ EN = {
     "mitmdump 실행 파일 선택": "Select mitmdump executable",
     "결과 JSONL 파일": "Results JSONL file",
     "mitmdump 필요": "mitmdump required",
-    "mitmdump 실행 파일을 선택하세요. 설치 방법은 README.md에 있습니다.":
-        "Select mitmdump.exe. Installation instructions are in the user guide.",
+    "ZIP의 mitmdump.exe를 GUI 실행 파일과 같은 폴더에 두세요.":
+        "Keep mitmdump.exe from the ZIP beside the GUI executable.",
     "인증서 신뢰 필요": "Certificate trust required",
     "현재 mitmproxy 인증서가 Windows의 신뢰할 수 있는 루트 인증 기관에 없습니다. 먼저 '인증서 파일 보기'에서 현재 사용자 루트 저장소에 설치하세요. 설치 전 캡처를 시작하면 Codex 연결이 끊길 수 있습니다.":
         "The current mitmproxy certificate is not in the Windows Trusted Root store. Use Open certificate file and install it under Current User > Trusted Root Certification Authorities before capture.",

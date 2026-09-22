@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import queue
 import re
@@ -12,6 +13,7 @@ import socket
 import ssl
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import tkinter as tk
@@ -47,12 +49,93 @@ def clean_child_environment() -> dict[str, str]:
 
 def default_mitmdump() -> str:
     explicit = os.environ.get("CODEX_MODEL_PROBE_MITMDUMP")
+    bundled = HERE / "mitmdump.exe"
     packaged = HERE / ".venv" / "Scripts" / "mitmdump.exe"
     local = HERE.parents[1] / "work" / "mitmproxy-venv" / "Scripts" / "mitmdump.exe"
-    for candidate in (explicit, str(packaged), str(local), shutil.which("mitmdump")):
+    for candidate in (explicit, str(bundled), str(packaged), str(local), shutil.which("mitmdump")):
         if candidate and Path(candidate).is_file():
             return str(candidate)
     return ""
+
+
+def default_results_path() -> Path:
+    base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+    return base / "CodexModelProbe" / "results.jsonl"
+
+
+def local_ca_certificate() -> Path:
+    return Path.home() / ".mitmproxy" / "mitmproxy-ca-cert.cer"
+
+
+def certificate_fingerprint(cert: Path) -> str:
+    return hashlib.sha256(ssl.PEM_cert_to_DER_cert(cert.read_text(encoding="ascii"))).hexdigest().upper()
+
+
+def install_current_user_ca(cert: Path) -> None:
+    """Trust only the local mitmproxy CA after the GUI's explicit confirmation."""
+    if cert.resolve() != local_ca_certificate().resolve():
+        raise ValueError("Unexpected certificate path")
+    certificate_fingerprint(cert)  # Validate PEM before passing it to certutil.
+    result = subprocess.run(
+        ["certutil.exe", "-user", "-addstore", "Root", str(cert)],
+        capture_output=True, text=True, timeout=20,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+    )
+    if result.returncode != 0:
+        raise OSError((result.stderr or result.stdout or "certutil failed").strip()[-500:])
+    if not mitmproxy_certificate_trusted():
+        raise OSError("Certificate was not found in the trusted Root store")
+
+
+def terminate_process_tree(proc: subprocess.Popen) -> None:
+    """Stop the proxy's PyInstaller child together with its launcher on Windows."""
+    if proc.poll() is not None:
+        return
+    if os.name == "nt":
+        try:
+            subprocess.run(["taskkill.exe", "/PID", str(proc.pid), "/T", "/F"],
+                           capture_output=True, timeout=10, creationflags=subprocess.CREATE_NO_WINDOW)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    if proc.poll() is None:
+        proc.terminate()
+
+
+def proxy_self_test() -> bool:
+    """Check that the packaged proxy can load the addon and listen locally."""
+    executable = default_mitmdump()
+    if not executable or not (HERE / "capture.py").is_file():
+        return False
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+    with tempfile.TemporaryDirectory() as directory:
+        try:
+            proc = subprocess.Popen(
+                [executable, "-q", "-s", str(HERE / "capture.py"),
+                 "--set", f"modelprobe_output={Path(directory) / 'results.jsonl'}",
+                 "--listen-host", "127.0.0.1", "--listen-port", str(port)],
+                cwd=HERE, env=clean_child_environment(), stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
+        except OSError:
+            return False
+        try:
+            deadline = time.monotonic() + 15
+            while time.monotonic() < deadline and proc.poll() is None:
+                try:
+                    with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                        return True
+                except OSError:
+                    time.sleep(0.1)
+            return False
+        finally:
+            terminate_process_tree(proc)
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
 
 
 def display_time(value: str | None) -> str:
@@ -74,7 +157,7 @@ def model_comparison(record: dict) -> str:
 
 def mitmproxy_certificate_trusted() -> bool:
     """Match the exact locally generated CA against Windows' trusted ROOT store."""
-    cert = Path.home() / ".mitmproxy" / "mitmproxy-ca-cert.cer"
+    cert = local_ca_certificate()
     if not cert.is_file() or not hasattr(ssl, "enum_certificates"):
         return False
     try:
@@ -149,13 +232,15 @@ class App:
         self.proc: subprocess.Popen | None = None
         self.desktop_launch_cancel = threading.Event()
         self.desktop_relaunch_pending = False
+        self.quick_active = False
+        self.quick_deadline = 0.0
         self.desktop_messages: queue.Queue[str] = queue.Queue()
         self.process_messages: queue.Queue[str] = queue.Queue()
         self.state = MonitorState()
         self.codex_metadata = CodexMetadataResolver()
         self.offset = 0
         self.pending = b""
-        self.selected_file = Path(HERE / "results.jsonl")
+        self.selected_file = default_results_path()
 
         self.mitmdump_var = tk.StringVar(value=default_mitmdump())
         self.output_var = tk.StringVar(value=str(self.selected_file))
@@ -173,6 +258,7 @@ class App:
         self._build()
         self._set_tail_start()
         if self.watch_only:
+            self.quick_button.configure(state="disabled")
             self.start_button.configure(state="disabled")
             self.stop_button.configure(state="disabled")
             self.cli_button.configure(state="disabled")
@@ -188,11 +274,12 @@ class App:
             style.theme_use("vista")
         style.configure("Title.TLabel", font=("Segoe UI", 17, "bold"))
         style.configure("Value.TLabel", font=("Segoe UI", 14, "bold"))
+        style.configure("Quick.TButton", font=("Segoe UI", 11, "bold"), padding=(16, 10))
 
         outer = ttk.Frame(self.root, padding=18)
         outer.pack(fill="both", expand=True)
         outer.columnconfigure(0, weight=1)
-        outer.rowconfigure(3, weight=1)
+        outer.rowconfigure(4, weight=1)
 
         header = ttk.Frame(outer)
         header.grid(row=0, column=0, sticky="ew", pady=(0, 12))
@@ -201,8 +288,26 @@ class App:
         ttk.Label(header, textvariable=self.status_var, foreground="#2563eb").grid(row=1, column=0, sticky="w", pady=(4, 0))
         ttk.Button(header, text=tr("사용 설명서"), command=self.open_manual).grid(row=0, column=1, rowspan=2, sticky="e")
 
+        quick = ttk.LabelFrame(outer, text=tr("빠른 시작"), padding=12)
+        quick.grid(row=1, column=0, sticky="ew")
+        quick.columnconfigure(0, weight=1)
+        ttk.Label(quick, text=tr("간편 연결을 누르면 프록시와 인증서를 준비합니다. Codex 앱을 완전히 닫으면 자동으로 다시 열어 연결합니다."),
+                  wraplength=1120).grid(row=0, column=0, sticky="w")
+        quick_controls = ttk.Frame(quick)
+        quick_controls.grid(row=1, column=0, sticky="w", pady=(9, 0))
+        self.quick_button = ttk.Button(quick_controls, text=tr("간편 연결 시작"), style="Quick.TButton",
+                                       command=self.quick_start)
+        self.quick_button.pack(side="left")
+        self.quick_stop_button = ttk.Button(quick_controls, text=tr("연결 중지"), command=self.quick_stop,
+                                            state="disabled")
+        self.quick_stop_button.pack(side="left", padx=(10, 0))
+        self.advanced_button = ttk.Button(quick_controls, text=tr("고급 설정 보기"), command=self.toggle_advanced)
+        self.advanced_button.pack(side="left", padx=(10, 0))
+
         config = ttk.LabelFrame(outer, text=tr("실시간 캡처 설정"), padding=10)
-        config.grid(row=1, column=0, sticky="ew")
+        config.grid(row=2, column=0, sticky="ew", pady=(10, 0))
+        self.config_frame = config
+        config.grid_remove()
         config.columnconfigure(1, weight=1)
         self._field(config, 0, "mitmdump", self.mitmdump_var, self._browse_executable)
         self._field(config, 1, tr("결과 파일"), self.output_var, self._browse_output)
@@ -240,7 +345,7 @@ class App:
         self._update_mode()
 
         cards = ttk.Frame(outer)
-        cards.grid(row=2, column=0, sticky="ew", pady=14)
+        cards.grid(row=3, column=0, sticky="ew", pady=14)
         for index in range(4):
             cards.columnconfigure(index, weight=1)
         for index, (label, variable) in enumerate((
@@ -254,7 +359,7 @@ class App:
             ttk.Label(frame, textvariable=variable, style="Value.TLabel").pack(anchor="w")
 
         table_frame = ttk.LabelFrame(outer, text=tr("최종 응답 기록"), padding=8)
-        table_frame.grid(row=3, column=0, sticky="nsew")
+        table_frame.grid(row=4, column=0, sticky="nsew")
         table_frame.columnconfigure(0, weight=1)
         table_frame.rowconfigure(0, weight=1)
         self.table = ttk.Treeview(table_frame, columns=("time", "project_name", "conversation_title",
@@ -286,7 +391,7 @@ class App:
         self.table.configure(yscrollcommand=scroll.set, xscrollcommand=horizontal_scroll.set)
 
         ttk.Label(outer, text=tr("모델·reasoning은 실제 요청과 서버 완료 응답에서 읽고, 프로젝트·대화 제목은 로컬 Codex 메타데이터에서 대화 ID로 찾습니다. 연결할 수 없는 정보는 '확인 불가'로 표시합니다."),
-                  wraplength=1180, foreground="#4b5563").grid(row=4, column=0, sticky="ew", pady=(10, 0))
+                  wraplength=1180, foreground="#4b5563").grid(row=5, column=0, sticky="ew", pady=(10, 0))
 
     def _update_mode(self):
         local = self.mode_var.get() == tr("Codex 프로세스 캡처 (실험적)")
@@ -296,6 +401,130 @@ class App:
         self.cli_button.configure(state="disabled" if local else "normal")
         self.desktop_button.configure(state="disabled" if local else "normal")
         self.cli_model_entry.configure(state="disabled" if local else "normal")
+
+    def toggle_advanced(self):
+        if self.config_frame.winfo_ismapped():
+            self.config_frame.grid_remove()
+            self.advanced_button.configure(text=tr("고급 설정 보기"))
+        else:
+            self.config_frame.grid()
+            self.advanced_button.configure(text=tr("고급 설정 숨기기"))
+
+    @staticmethod
+    def available_port(preferred: int) -> int:
+        with socket.socket() as listener:
+            try:
+                listener.bind(("127.0.0.1", preferred))
+            except OSError:
+                listener.bind(("127.0.0.1", 0))
+            return listener.getsockname()[1]
+
+    def quick_start(self):
+        if self.watch_only or self.quick_active or self.desktop_relaunch_pending:
+            return
+        if codex_desktop_executable() is None:
+            messagebox.showerror(tr("Codex 앱 없음"), tr("설치된 Codex 데스크톱 앱의 ChatGPT.exe를 찾지 못했습니다."))
+            return
+        self.mode_var.set(tr("수동 HTTP 프록시"))
+        self._update_mode()
+        if self.proc is None or self.proc.poll() is not None:
+            try:
+                preferred = int(self.port_var.get())
+            except ValueError:
+                preferred = 8080
+            self.port_var.set(str(self.available_port(preferred if 1 <= preferred <= 65535 else 8080)))
+            self.start_proxy()
+            if self.proc is None:
+                return
+        self.quick_active = True
+        self.quick_deadline = time.monotonic() + 30
+        self.quick_button.configure(state="disabled")
+        self.quick_stop_button.configure(state="normal")
+        self.status_var.set(tr("프록시와 인증서를 준비하는 중"))
+        self.root.after(200, self._quick_wait)
+
+    def _quick_wait(self):
+        if not self.quick_active:
+            return
+        if self.proc is None or self.proc.poll() is not None:
+            self._quick_fail(tr("프록시가 시작되지 않았습니다. 고급 설정에서 오류 메시지를 확인하세요."))
+            return
+        if time.monotonic() > self.quick_deadline:
+            self._quick_fail(tr("프록시 또는 인증서 준비 시간이 초과됐습니다."))
+            return
+        try:
+            with socket.create_connection(("127.0.0.1", int(self.port_var.get())), timeout=0.2):
+                pass
+        except OSError:
+            self.root.after(250, self._quick_wait)
+            return
+        cert = local_ca_certificate()
+        if not cert.is_file():
+            self.root.after(250, self._quick_wait)
+            return
+        if mitmproxy_certificate_trusted():
+            self._quick_connect()
+            return
+        try:
+            fingerprint = certificate_fingerprint(cert)
+        except (OSError, UnicodeError, ValueError) as exc:
+            self._quick_fail(str(exc))
+            return
+        approved = messagebox.askyesno(
+            tr("인증서 신뢰 확인"),
+            tr("이 PC에서 생성된 mitmproxy 인증서를 현재 사용자 신뢰 루트에 추가합니다. 추가하면 이 프록시가 해당 사용자의 HTTPS 통신을 해독할 수 있습니다. 인증서 SHA-256: {fingerprint}\n\n계속할까요?").format(fingerprint=fingerprint),
+        )
+        if not approved:
+            self.quick_active = False
+            self.quick_button.configure(state="normal")
+            self.stop_proxy()
+            self.status_var.set(tr("인증서 설치가 취소됐습니다"))
+            return
+        self.status_var.set(tr("인증서를 현재 사용자 저장소에 설치하는 중"))
+        self.quick_install_result = queue.Queue(maxsize=1)
+        threading.Thread(target=self._quick_install_worker, args=(cert,), daemon=True).start()
+        self.root.after(200, self._quick_check_install)
+
+    def _quick_install_worker(self, cert: Path):
+        try:
+            install_current_user_ca(cert)
+        except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+            self.quick_install_result.put(str(exc))
+        else:
+            self.quick_install_result.put(None)
+
+    def _quick_check_install(self):
+        if not self.quick_active:
+            return
+        try:
+            error = self.quick_install_result.get_nowait()
+        except queue.Empty:
+            self.root.after(200, self._quick_check_install)
+            return
+        if error:
+            self._quick_fail(error)
+        else:
+            self._quick_connect()
+
+    def _quick_connect(self):
+        self.quick_active = False
+        self.schedule_desktop_relaunch()
+        if not self.desktop_relaunch_pending:
+            self.quick_button.configure(state="normal")
+
+    def _quick_fail(self, reason: str):
+        self.quick_active = False
+        self.quick_button.configure(state="normal")
+        self.stop_proxy()
+        messagebox.showerror(tr("간편 연결 실패"), reason)
+
+    def quick_stop(self):
+        if self.proc is None or self.proc.poll() is not None:
+            return
+        if not messagebox.askyesno(tr("연결 중지"),
+                                   tr("프록시로 열린 Codex 앱을 먼저 닫으세요. 지금 프록시를 중지하시겠습니까?")):
+            return
+        self.stop_proxy()
 
     def _capture_label(self):
         if self.mode_var.get() == tr("Codex 프로세스 캡처 (실험적)"):
@@ -334,7 +563,7 @@ class App:
             return
         executable = Path(self.mitmdump_var.get().strip())
         if not executable.is_file():
-            messagebox.showerror(tr("mitmdump 필요"), tr("mitmdump 실행 파일을 선택하세요. 설치 방법은 README.md에 있습니다."))
+            messagebox.showerror(tr("mitmdump 필요"), tr("ZIP의 mitmdump.exe를 GUI 실행 파일과 같은 폴더에 두세요."))
             return
         local = self.mode_var.get() == tr("Codex 프로세스 캡처 (실험적)")
         if local:
@@ -378,6 +607,7 @@ class App:
         try:
             self.proc = subprocess.Popen(
                 args, cwd=HERE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                env=clean_child_environment(),
                 text=True, encoding="utf-8", errors="replace",
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
             )
@@ -387,6 +617,7 @@ class App:
         threading.Thread(target=self._read_process_output, args=(self.proc,), daemon=True).start()
         self.start_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
+        self.quick_stop_button.configure(state="normal")
         self.status_var.set(tr("캡처 시작 중 · {label}").format(label=self._capture_label()))
 
     def _read_process_output(self, proc: subprocess.Popen):
@@ -396,11 +627,14 @@ class App:
                     self.process_messages.put(line.strip()[-500:])
 
     def stop_proxy(self):
+        self.quick_active = False
+        self.quick_button.configure(state="normal")
+        self.quick_stop_button.configure(state="disabled")
         self.desktop_launch_cancel.set()
         self.desktop_relaunch_pending = False
         self.desktop_button.configure(state="normal" if self.mode_var.get() == tr("수동 HTTP 프록시") else "disabled")
         if self.proc and self.proc.poll() is None:
-            self.proc.terminate()
+            terminate_process_tree(self.proc)
             self.status_var.set(tr("프록시 중지 중"))
 
     def copy_proxy(self):
@@ -602,6 +836,7 @@ class App:
             while not self.desktop_messages.empty():
                 self.status_var.set(self.desktop_messages.get_nowait())
                 self.desktop_button.configure(state="normal")
+                self.quick_button.configure(state="normal")
                 had_desktop_message = True
             self._read_new_records()
             if self.proc:
@@ -614,7 +849,10 @@ class App:
                     self.start_button.configure(state="normal")
                     self.stop_button.configure(state="disabled")
                     self.desktop_button.configure(state="normal")
-                elif self.state.responses == 0 and not self.desktop_relaunch_pending and not had_desktop_message:
+                    self.quick_button.configure(state="normal")
+                    self.quick_stop_button.configure(state="disabled")
+                elif (self.state.responses == 0 and not self.quick_active
+                      and not self.desktop_relaunch_pending and not had_desktop_message):
                     self.status_var.set(tr("캡처 실행 중 · {label} · 트래픽 대기").format(label=self._capture_label()))
             if self.proc is None and not self.process_messages.empty():
                 last = ""
@@ -627,9 +865,10 @@ class App:
         self.root.after(300, self._tick)
 
     def close(self):
+        self.quick_active = False
         self.desktop_launch_cancel.set()
         if self.proc and self.proc.poll() is None:
-            self.proc.terminate()
+            terminate_process_tree(self.proc)
         self.root.destroy()
 
 
@@ -641,6 +880,8 @@ def main(language: str | None = None):
         LANGUAGE = language
     if "--check-cert" in sys.argv:
         return 0 if mitmproxy_certificate_trusted() else 1
+    if "--check-proxy" in sys.argv:
+        return 0 if proxy_self_test() else 1
     root = tk.Tk()
     App(root)
     if "--check-ui" in sys.argv:

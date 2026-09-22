@@ -7,7 +7,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 ROOT = Path(__file__).resolve().parent
 DIST = ROOT / "dist"
-COMMON = ("capture.py", "model_probe.py", "install_mitmproxy.ps1")
+COMMON = ("capture.py", "model_probe.py", "MITMPROXY_LICENSE.txt")
 
 
 def main() -> None:
@@ -16,6 +16,7 @@ def main() -> None:
     for language in ("ko", "en"):
         files = (
             DIST / f"CodexModelMonitor-{language}.exe",
+            DIST / "mitmdump.exe",
             *(ROOT / name for name in COMMON),
             ROOT / f"README.{language}.md",
         )

@@ -4,13 +4,15 @@ import queue
 import ssl
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import gui
-from gui import App, clean_child_environment, edition_language, mitmproxy_certificate_trusted, model_comparison
+from gui import (App, clean_child_environment, edition_language, install_current_user_ca,
+                 mitmproxy_certificate_trusted, model_comparison, terminate_process_tree)
 from translations import EN, translate
 
 
@@ -64,6 +66,72 @@ class CertificateTests(unittest.TestCase):
             with patch("gui.Path.home", return_value=Path(directory)), \
                  patch("gui.ssl.enum_certificates", return_value=[(der, "x509_asn", set())]):
                 self.assertIs(mitmproxy_certificate_trusted(), True)
+
+    def test_quick_install_targets_only_the_local_current_user_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cert = Path(directory) / "mitmproxy-ca-cert.cer"
+            cert.write_text(ssl.DER_cert_to_PEM_cert(b"\x30\x03\x02\x01\x01"), encoding="ascii")
+            with patch("gui.local_ca_certificate", return_value=cert), \
+                 patch("gui.mitmproxy_certificate_trusted", return_value=True), \
+                 patch("gui.subprocess.run", return_value=SimpleNamespace(returncode=0)) as run:
+                install_current_user_ca(cert)
+                self.assertEqual(run.call_args.args[0],
+                                 ["certutil.exe", "-user", "-addstore", "Root", str(cert)])
+                with self.assertRaises(ValueError):
+                    install_current_user_ca(Path(directory) / "other.cer")
+                self.assertEqual(run.call_count, 1)
+
+
+class QuickStartTests(unittest.TestCase):
+    def test_one_click_reuses_running_proxy_and_schedules_readiness_check(self):
+        app = object.__new__(App)
+        app.watch_only = False
+        app.quick_active = False
+        app.desktop_relaunch_pending = False
+        app.proc = SimpleNamespace(poll=lambda: None)
+        app.mode_var = Mock()
+        app._update_mode = Mock()
+        app.quick_button = Mock()
+        app.quick_stop_button = Mock()
+        app.status_var = Mock()
+        app.root = Mock()
+        with patch("gui.codex_desktop_executable", return_value=Path("C:/Codex/ChatGPT.exe")):
+            app.quick_start()
+        self.assertTrue(app.quick_active)
+        app.root.after.assert_called_once_with(200, app._quick_wait)
+        app.quick_button.configure.assert_called_with(state="disabled")
+
+    def test_certificate_is_not_installed_without_explicit_confirmation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cert = Path(directory) / "mitmproxy-ca-cert.cer"
+            cert.write_text("certificate", encoding="ascii")
+            app = object.__new__(App)
+            app.quick_active = True
+            app.quick_deadline = time.monotonic() + 10
+            app.proc = SimpleNamespace(poll=lambda: None)
+            app.port_var = Mock()
+            app.port_var.get.return_value = "8080"
+            app.quick_button = Mock()
+            app.status_var = Mock()
+            app.stop_proxy = Mock()
+            with patch("gui.socket.create_connection"), \
+                 patch("gui.local_ca_certificate", return_value=cert), \
+                 patch("gui.mitmproxy_certificate_trusted", return_value=False), \
+                 patch("gui.certificate_fingerprint", return_value="FINGERPRINT"), \
+                 patch("gui.messagebox.askyesno", return_value=False), \
+                 patch("gui.install_current_user_ca") as install:
+                app._quick_wait()
+            install.assert_not_called()
+            app.stop_proxy.assert_called_once()
+            self.assertFalse(app.quick_active)
+
+    @unittest.skipUnless(os.name == "nt", "Windows process tree behavior")
+    def test_stop_covers_standalone_proxy_child_process(self):
+        proc = SimpleNamespace(pid=1234, poll=Mock(side_effect=[None, 1]), terminate=Mock())
+        with patch("gui.subprocess.run") as run:
+            terminate_process_tree(proc)
+        self.assertEqual(run.call_args.args[0], ["taskkill.exe", "/PID", "1234", "/T", "/F"])
+        proc.terminate.assert_not_called()
 
 
 class DesktopRelaunchTests(unittest.TestCase):

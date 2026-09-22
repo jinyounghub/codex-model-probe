@@ -1,23 +1,15 @@
-# Codex Model Probe v0.2.0
-
-This update adds local Codex project and conversation labels to the GUI, matched by the request thread ID. It also shows the requested and server-reported `reasoning.effort` and the server-reported reasoning token count. The response ID remains visible. Missing metadata is shown as Unknown / 확인 불가. Existing proxies must be restarted normally to load the updated capture addon.
+# Codex Model Probe v0.3.0
 
 ## 한국어
 
-`codex-model-probe-ko-win64.zip`을 다운로드해 압축을 푸세요. 한글 GUI EXE, 캡처 애드온, mitmproxy 설치 스크립트, 자세한 [한글 설명서](https://github.com/jinyounghub/codex-model-probe/blob/main/README.ko.md)가 들어 있습니다. **EXE만 따로 실행하면 프록시 구성 파일이 없어 캡처를 시작할 수 없습니다.** ZIP 전체를 압축 해제해 사용하세요.
+설치 스크립트가 필요 없는 버전입니다. [한글 ZIP](https://github.com/jinyounghub/codex-model-probe/releases)을 압축 해제하고 `CodexModelMonitor-ko.exe`를 연 뒤 **간편 연결 시작**을 누르세요. 처음에는 이 PC에서 생성된 인증서의 지문과 신뢰 범위를 확인하고 동의해야 합니다. 이후 Codex 앱을 완전히 닫으면 모니터가 프록시 환경으로 다시 엽니다. 자세한 내용은 [한글 설명서](https://github.com/jinyounghub/codex-model-probe/blob/main/README.ko.md)를 보세요.
 
-1. `powershell -NoProfile -ExecutionPolicy Bypass -File .\install_mitmproxy.ps1`
-2. `CodexModelMonitor-ko.exe` 실행 → `프록시 시작`
-3. 설명서에 따라 이 PC에서 생성된 mitmproxy 인증서를 **현재 사용자 > 신뢰할 수 있는 루트 인증 기관**에 설치
-4. `Codex 앱 연결 예약` 또는 `프록시로 Codex CLI 열기`
+ZIP에는 검증된 공식 mitmproxy 12.2.3 단독 실행 파일이 포함됩니다. Python 설치나 PowerShell 실행은 필요 없습니다. 프록시 포트는 자동으로 선택하고, 고급 설정은 필요할 때만 펼칩니다. 결과는 `%LOCALAPPDATA%\CodexModelProbe\results.jsonl`에 저장합니다.
 
 ## English
 
-Download and extract `codex-model-probe-en-win64.zip`. It contains the English GUI EXE, capture addon, mitmproxy installer, and the full [English guide](https://github.com/jinyounghub/codex-model-probe/blob/main/README.en.md). **Do not run the EXE alone without extracting the other files.**
+No setup script is required. Extract the [English ZIP](https://github.com/jinyounghub/codex-model-probe/releases), open `CodexModelMonitor-en.exe`, and click **Quick connect**. On the first run, review and confirm the locally generated certificate's fingerprint and trust scope. Fully close Codex; the monitor then reopens it through the proxy. See the [English guide](https://github.com/jinyounghub/codex-model-probe/blob/main/README.en.md).
 
-1. Run `powershell -NoProfile -ExecutionPolicy Bypass -File .\install_mitmproxy.ps1`.
-2. Open `CodexModelMonitor-en.exe` and click **Start proxy**.
-3. Install the locally generated mitmproxy certificate under **Current User > Trusted Root Certification Authorities**, as described in the guide.
-4. Choose **Connect Codex app on restart** or **Open Codex CLI via proxy**.
+The ZIP includes a verified official mitmproxy 12.2.3 standalone binary. No Python or PowerShell setup is needed. The GUI selects a free proxy port, hides advanced controls until requested, and stores results under `%LOCALAPPDATA%\CodexModelProbe\results.jsonl`.
 
-Both editions display the requested model, completed server payload model, reasoning metadata, local conversation labels, session ID, thread ID, and response ID. `Values differ` compares payload strings; it does not independently verify internal model routing. The archives contain no certificate, private key, request body, or captured session data.
+Both ZIPs contain no certificate, private key, prompts, or captured results.

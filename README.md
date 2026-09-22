@@ -5,6 +5,6 @@ Live Windows GUI for inspecting the **requested model and reasoning effort**, th
 - [English setup and user guide](README.en.md)
 - [한국어 설치 및 사용 설명서](README.ko.md)
 
-Download the Korean or English Windows ZIP from [Releases](https://github.com/jinyounghub/codex-model-probe/releases). Each ZIP contains its GUI EXE, the capture addon, the installer script, and the corresponding guide. No certificate, private key, request body, or captured session data is bundled.
+Download the Korean or English Windows ZIP from [Releases](https://github.com/jinyounghub/codex-model-probe/releases). Extract it, open the GUI EXE, and click **Quick connect / 간편 연결 시작**. Each ZIP includes the official standalone mitmdump, the capture addon, and a guide. No Python installation or PowerShell setup script is needed. No certificate, private key, request body, or captured session data is bundled.
 
 The observed `response.completed.response.model` is a server payload field. It is not an independent audit of the physical model that produced the response.

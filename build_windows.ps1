@@ -18,4 +18,6 @@ foreach ($language in @('ko', 'en')) {
         (Join-Path $PSScriptRoot 'gui.py')
     if ($LASTEXITCODE -ne 0) { throw "Build failed: $language" }
 }
+& $python (Join-Path $PSScriptRoot 'vendor_mitmdump.py')
+if ($LASTEXITCODE -ne 0) { throw 'Could not verify the official mitmdump binary.' }
 Write-Output (Join-Path $PSScriptRoot 'dist')
