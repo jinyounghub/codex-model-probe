@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+build/
+dist/
+release-smoke-*/
+*.spec
+*.exe
+*.zip
+results.jsonl
+*.jsonl
+*.mitm
+.mitmproxy/
