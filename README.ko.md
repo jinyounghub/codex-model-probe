@@ -1,8 +1,21 @@
 # Codex Model Probe: 한글판 사용 설명서
 
-> **v0.4.0:** 설치 프로그램에 일반 HTTP 프록시를 내장했습니다. v0.3.0의 `mitmdump.exe`와 프로세스 캡처용 WinDivert 드라이버는 포함하지 않습니다. [변경 내역과 기존 탐지 기록](https://github.com/jinyounghub/codex-model-probe/blob/main/DEFENDER.md#한국어).
-
 Codex가 **실제 통신에서 요청한 모델과 reasoning effort**, 서버의 **완료 응답 페이로드가 보고한 모델·reasoning effort·토큰 수**, 로컬 대화 제목과 프로젝트명을 실시간으로 나란히 보여주는 Windows 도구입니다. 한 번 검사하고 끝나는 방식이 아니라 프록시와 Codex를 켜둔 동안 계속 기록합니다.
+
+[**한글판 설치 EXE 다운로드**](https://github.com/jinyounghub/codex-model-probe/releases/latest/download/CodexModelProbe-Setup-ko.exe) · [모든 배포 파일](https://github.com/jinyounghub/codex-model-probe/releases/latest) · [English guide](README.en.md) · [프로젝트 소개](README.md)
+
+## 실제 구동 화면
+
+![요청 모델과 서버 완료 응답 모델, reasoning effort 및 토큰 수를 비교하는 실제 구동 화면. 개인 식별 영역은 가림.](docs/images/live-overview-redacted.png)
+
+실제 한글판 사용 화면입니다. **시각·프로젝트명·대화 제목과 ID는 공개용 이미지에서 불투명하게 가렸습니다.** 모델명·reasoning·토큰 수를 포함한 가림 영역 밖의 픽셀은 원본 그대로입니다. 프로그램 자체에는 확인 가능한 원래 값이 표시됩니다.
+
+- **모델 비교:** 실제 요청과 완료 응답의 모델 문자열을 나란히 표시하고, 다르면 `값 다름`으로 강조합니다.
+- **Reasoning 비교:** 요청·응답 effort와 서버가 보고한 reasoning 토큰 수를 함께 확인합니다.
+- **대화 연결:** 로컬 기록에서 프로젝트·대화 제목을 찾아 세션·대화·응답 ID와 함께 표시합니다.
+- **지속 추적:** 연결 중 새 완료 응답을 계속 기록하며, 표에는 최신 500개 행을 표시합니다.
+
+위 화면의 `gpt-5.6-sol` → `gpt-6-sol`은 요청·응답 문자열이 다른 사례이며, `gpt-6-astra` → `gpt-6-astra`는 같은 사례입니다. 표시된 `medium`, `xhigh`는 effort 값입니다.
 
 > `최종 응답 모델`은 `response.completed.response.model` 등 서버 완료 페이로드의 문자열입니다. 실제 모델 가중치나 내부 라우팅을 독립적으로 증명하는 값은 아닙니다. 요청과 완료 응답을 연결할 수 없는 경우 요청 모델과 세션 ID는 `확인 불가`로 표시합니다.
 
@@ -16,6 +29,8 @@ Windows 10/11과 Windows Codex 데스크톱 앱이 필요합니다. **Python 설
 4. 현재 Codex 앱을 **완전히 종료**합니다. 모니터가 Codex를 프록시 환경으로 다시 열면 메시지를 보내고 표의 새 행을 확인합니다. 모니터 창을 켜두면 계속 기록됩니다.
 
 이미 실행 중인 Codex에는 프록시 설정을 붙일 수 없어 **한 번 종료 후 재실행**해야 합니다. 이 방식은 Microsoft Store/Appx 형태의 Codex 앱을 자동으로 찾습니다. 기본 설치 위치는 `%LOCALAPPDATA%\Programs\CodexModelProbe-ko`이며 관리자 권한이나 별도 Python 설치가 필요 없습니다. 설치 프로그램 자체는 인증서를 추가하지 않습니다.
+
+> **v0.4.0:** 설치 프로그램에 일반 HTTP 프록시를 내장했습니다. v0.3.0의 `mitmdump.exe`와 프로세스 캡처용 WinDivert 드라이버는 포함하지 않습니다. [변경 내역과 기존 탐지 기록](https://github.com/jinyounghub/codex-model-probe/blob/main/DEFENDER.md#한국어).
 
 설치 없이 사용하려면 `codex-model-probe-ko-win64.zip`을 **새 폴더에 전부 압축 해제**하고 `CodexModelMonitor-ko.exe`를 실행하세요. `_internal` 폴더를 반드시 함께 유지하세요. 이전 v0.3.0 폴더에 덮어쓰지 마세요. 이전 `mitmdump.exe`는 필요하지 않습니다. 결과 기록과 현재 PC 인증서는 기존 위치를 사용합니다.
 
@@ -32,6 +47,10 @@ Windows 10/11과 Windows Codex 데스크톱 앱이 필요합니다. **Python 설
 **고급 설정 보기**를 누르면 수동 프록시 시작, 포트·호스트·결과 파일 설정, 인증서 파일 보기, CLI 연결 기능이 나옵니다. 내장 프록시는 `127.0.0.1`에서만 대기하며 HTTPS 분석 대상은 `chatgpt.com`, `api.openai.com`입니다. CLI를 사용하려면 프록시가 켜진 상태에서 인증서 신뢰를 마친 뒤 **프록시로 Codex CLI 열기**를 누릅니다. 이 버튼은 새 CLI 프로세스에만 프록시 환경 변수를 지정하며 Windows 전체 프록시 설정을 바꾸지 않습니다. 프로세스 캡처 모드는 제거했습니다.
 
 ## 4. 표와 결과 파일 읽기
+
+![ID 열까지 펼친 실제 구동 화면. 시각·프로젝트·대화 제목·세션 ID·대화 ID·응답 ID는 가림.](docs/images/live-details-redacted.png)
+
+가로 스크롤로 오른쪽의 ID, 통신 방식, 최종 페이로드 근거 필드를 확인할 수 있습니다. `REDACTED`는 이 게시용 이미지에만 적용한 가림 표시입니다.
 
 | 열 | 출처와 의미 |
 | --- | --- |

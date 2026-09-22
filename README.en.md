@@ -1,8 +1,21 @@
 # Codex Model Probe: English user guide
 
-> **v0.4.0:** The installer includes an explicit HTTP proxy. The old standalone `mitmdump.exe` and WinDivert process-capture drivers are no longer bundled. See the [architecture change and historical detection record](https://github.com/jinyounghub/codex-model-probe/blob/main/DEFENDER.md).
-
 This Windows tool continuously displays the **model and reasoning effort requested in the actual Codex network message**, the **model, reasoning effort, and reasoning token usage reported by the server's completed response**, plus locally matched project and conversation labels. It keeps recording while the proxy and Codex remain open.
+
+[**Download the English installer EXE**](https://github.com/jinyounghub/codex-model-probe/releases/latest/download/CodexModelProbe-Setup-en.exe) · [All downloads](https://github.com/jinyounghub/codex-model-probe/releases/latest) · [한국어 설명서](README.ko.md) · [Project overview](README.md)
+
+## Live preview
+
+![Actual running GUI comparing requested and final response model, reasoning effort, and token usage, with private fields redacted.](docs/images/live-overview-redacted.png)
+
+An actual capture of the **Korean GUI**; the English edition provides the same features with English labels. **Timestamps, project/conversation labels, and IDs are covered with opaque blocks in the published images.** Pixels outside those blocks, including model names, reasoning, and token counts, are unchanged. The application itself displays the original values when available.
+
+- **Compare models:** View model strings from the actual request and completed response side by side. Different strings are highlighted as **Values differ**.
+- **Compare reasoning:** Inspect requested and reported effort, together with server-reported reasoning token usage.
+- **Identify conversations:** Match local project and conversation labels alongside session, thread, and response IDs.
+- **Keep monitoring:** Record new completed responses while connected; the table shows the latest 500 rows.
+
+The capture includes differing strings (`gpt-5.6-sol` → `gpt-6-sol`) and matching strings (`gpt-6-astra` → `gpt-6-astra`). Values such as `medium` and `xhigh` are effort settings.
 
 > “Final response model” means a string from `response.completed.response.model` or another completed server response payload. It does not independently prove which model weights or internal route produced the answer. If the request and completion cannot be paired, the requested model and session ID are shown as `Unknown`.
 
@@ -16,6 +29,8 @@ Windows 10/11 and the Windows Codex desktop app are required. **You do not need 
 4. **Fully close** the running Codex app. The monitor reopens it through the proxy. Send a message and look for a new row. Monitoring continues while the monitor remains open.
 
 A running Codex process cannot inherit new proxy settings, so one restart is required. Automatic reopening currently supports the Microsoft Store/Appx Codex app. The default installation folder is `%LOCALAPPDATA%\Programs\CodexModelProbe-en`. No administrator rights or separate Python installation are needed. The installer itself does not add certificates.
+
+> **v0.4.0:** The installer includes an explicit HTTP proxy. The old standalone `mitmdump.exe` and WinDivert process-capture drivers are no longer bundled. See the [architecture change and historical detection record](https://github.com/jinyounghub/codex-model-probe/blob/main/DEFENDER.md).
 
 For portable use, extract **all** of `codex-model-probe-en-win64.zip` into a **new folder** and open `CodexModelMonitor-en.exe`. Keep `_internal` beside the EXE. Do not overlay a v0.3.0 folder; its old `mitmdump.exe` is not needed. Existing results and this PC's certificate stay in their previous locations.
 
@@ -32,6 +47,10 @@ To finish, close the Codex app opened through the proxy first, click **Stop conn
 Click **Show advanced settings** for manual proxy controls, port/host/result-file settings, the certificate file, and CLI support. The built-in proxy listens only on `127.0.0.1` and limits HTTPS inspection to `chatgpt.com` and `api.openai.com`. To use the CLI, start the proxy, trust the certificate, then click **Open Codex CLI via proxy**. That button sets proxy environment variables only for the new CLI process. It does not change Windows-wide proxy settings. Process capture has been removed.
 
 ## 4. Read the table and results file
+
+![Actual expanded GUI with timestamps, project and conversation labels, session IDs, thread IDs, and response IDs redacted.](docs/images/live-details-redacted.png)
+
+Scroll horizontally to inspect IDs, transport, and the exact payload evidence field. `REDACTED` labels were added only to these published screenshots.
 
 | Column | Source and meaning |
 | --- | --- |
