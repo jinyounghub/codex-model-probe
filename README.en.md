@@ -1,6 +1,6 @@
 # Codex Model Probe: English user guide
 
-This Windows tool continuously displays the **model requested in the actual Codex network message**, the **model reported by the server's completed response payload**, and the session ID. It keeps recording while the proxy and Codex remain open.
+This Windows tool continuously displays the **model and reasoning effort requested in the actual Codex network message**, the **model, reasoning effort, and reasoning token usage reported by the server's completed response**, plus locally matched project and conversation labels. It keeps recording while the proxy and Codex remain open.
 
 > “Final response model” means a string from `response.completed.response.model` or another completed server response payload. It does not independently prove which model weights or internal route produced the answer. If the request and completion cannot be paired, the requested model and session ID are shown as `Unknown`.
 
@@ -53,16 +53,22 @@ This button sets `HTTP_PROXY`, `HTTPS_PROXY`, and `CODEX_CA_CERTIFICATE` only fo
 
 | Column | Source and meaning |
 | --- | --- |
+| Project, Conversation title | Display labels joined by the thread ID in local Codex metadata. When a project ID is absent, the saved project root is matched against the thread working directory. |
 | Session ID, Thread ID | `client_metadata.session_id` and `client_metadata.thread_id` in the actual request |
 | Requested model | `response.create.model` or the HTTP request body's `model` |
+| Requested reasoning | `reasoning.effort` in the actual request, such as `high` or `xhigh` |
 | Final response model | `response.completed.response.model`, or `model` on a completed non-streaming Response object |
+| Response reasoning | `response.reasoning.effort` in the completed server response |
+| Reasoning tokens | `usage.output_tokens_details.reasoning_tokens` in the completed response. Zero means the server reported zero. |
 | Value comparison | Literal string comparison only. **Values differ** is not a definitive conclusion about internal routing. |
 | Response ID | Server response ID used to associate request and completion |
 | Final payload field | Exact field used as evidence for the final model |
 
-Records append to `results.jsonl` in the same folder. The file does not store raw prompts, response bodies, or authorization headers. It **does** contain session, thread, and turn IDs; treat it as personal data. The repository and release ZIPs exclude it. The GUI shows the latest 500 rows; the file continues to grow. Use the horizontal scrollbar for columns on the right.
+Records append to `results.jsonl` in the same folder. It includes requested and response reasoning effort, response mode/context, and reasoning token usage. The file does not store raw prompts, response bodies, authorization headers, or conversation titles. It **does** contain session, thread, and turn IDs; treat it as personal data. The repository and release ZIPs exclude it. The GUI shows the latest 500 rows; the file continues to grow. Use the horizontal scrollbar for columns on the right.
 
-The network payload does not include a human-readable conversation title, so the tool does not invent one. For WebSocket traffic, a request is associated with the next `response.created.response.id` on the same connection, then checked against `response.completed.response.id`. Uncertain associations are left blank.
+The server response does not itself contain a project or conversation title. The GUI reads `~/.codex/state_5.sqlite` **read-only** to match an exact thread ID to its display title and a saved project path to its project name. Missing local metadata or threads on another host show as **Unknown**. Each response ID identifies an individual response, so its original value remains visible. For WebSocket traffic, a request is associated with the next `response.created.response.id` on the same connection, then checked against `response.completed.response.id`. Uncertain associations are left blank.
+
+`reasoning.effort` is a requested or server-reported setting. It does not expose the model's hidden reasoning or prove the amount of internal reasoning performed. Reasoning tokens are also server-reported usage. Missing fields show as **Unknown**. **If an existing proxy is running an older `capture.py`, the new fields will appear after its next normal restart.**
 
 ## 5. Watch a proxy already owned by another GUI
 
@@ -104,4 +110,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_windows.ps1
 python .\package_release.py
 ```
 
-The GUI itself uses Python's standard library. Live capture requires `capture.py`, `model_probe.py`, and the mitmproxy installation in the same extracted folder.
+The GUI itself uses Python's standard library. Live capture requires `capture.py`, `model_probe.py`, and the mitmproxy installation in the same extracted folder. Running the GUI from source also requires `codex_metadata.py` beside `gui.py`.

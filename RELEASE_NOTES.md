@@ -1,4 +1,6 @@
-# Codex Model Probe v0.1.0
+# Codex Model Probe v0.2.0
+
+This update adds local Codex project and conversation labels to the GUI, matched by the request thread ID. It also shows the requested and server-reported `reasoning.effort` and the server-reported reasoning token count. The response ID remains visible. Missing metadata is shown as Unknown / 확인 불가. Existing proxies must be restarted normally to load the updated capture addon.
 
 ## 한국어
 
@@ -18,4 +20,4 @@ Download and extract `codex-model-probe-en-win64.zip`. It contains the English G
 3. Install the locally generated mitmproxy certificate under **Current User > Trusted Root Certification Authorities**, as described in the guide.
 4. Choose **Connect Codex app on restart** or **Open Codex CLI via proxy**.
 
-Both editions display the requested model, completed server payload model, session ID, thread ID, and response ID. `Values differ` compares payload strings; it does not independently verify internal model routing. The archives contain no certificate, private key, request body, or captured session data.
+Both editions display the requested model, completed server payload model, reasoning metadata, local conversation labels, session ID, thread ID, and response ID. `Values differ` compares payload strings; it does not independently verify internal model routing. The archives contain no certificate, private key, request body, or captured session data.

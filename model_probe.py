@@ -11,8 +11,27 @@ from pathlib import Path
 from typing import Any, Iterator
 
 
+def _reasoning_metadata(response: dict[str, Any]) -> dict[str, Any]:
+    reasoning = response.get("reasoning")
+    if not isinstance(reasoning, dict):
+        reasoning = {}
+    usage = response.get("usage")
+    if not isinstance(usage, dict):
+        usage = {}
+    details = usage.get("output_tokens_details")
+    if not isinstance(details, dict):
+        details = {}
+    tokens = details.get("reasoning_tokens")
+    return {
+        "response_reasoning_effort": reasoning.get("effort") if isinstance(reasoning.get("effort"), str) else None,
+        "response_reasoning_mode": reasoning.get("mode") if isinstance(reasoning.get("mode"), str) else None,
+        "response_reasoning_context": reasoning.get("context") if isinstance(reasoning.get("context"), str) else None,
+        "reasoning_tokens": tokens if isinstance(tokens, int) and not isinstance(tokens, bool) and tokens >= 0 else None,
+    }
+
+
 def request_metadata(message: Any, *, websocket: bool = False) -> dict[str, str | None] | None:
-    """Read only model and session identifiers from an outgoing response request."""
+    """Read model, reasoning settings, and IDs from the outgoing request."""
     if not isinstance(message, dict):
         return None
     if websocket and message.get("type") != "response.create":
@@ -23,6 +42,9 @@ def request_metadata(message: Any, *, websocket: bool = False) -> dict[str, str 
     client = message.get("client_metadata")
     if not isinstance(client, dict):
         client = {}
+    reasoning = message.get("reasoning")
+    if not isinstance(reasoning, dict):
+        reasoning = {}
 
     def identifier(name: str) -> str | None:
         value = client.get(name)
@@ -34,10 +56,12 @@ def request_metadata(message: Any, *, websocket: bool = False) -> dict[str, str 
         "thread_id": identifier("thread_id"),
         "turn_id": identifier("turn_id"),
         "request_evidence": "response.create.model" if websocket else "request.model",
+        "request_reasoning_effort": reasoning.get("effort") if isinstance(reasoning.get("effort"), str) else None,
+        "request_reasoning_context": reasoning.get("context") if isinstance(reasoning.get("context"), str) else None,
     }
 
 
-def _final_model(message: Any, event_name: str | None = None) -> dict[str, str | None] | None:
+def _final_model(message: Any, event_name: str | None = None) -> dict[str, Any] | None:
     if not isinstance(message, dict):
         return None
 
@@ -46,12 +70,14 @@ def _final_model(message: Any, event_name: str | None = None) -> dict[str, str |
         response = message.get("response")
         if not isinstance(response, dict):
             return {"model": None, "response_id": None,
-                    "evidence": "response.completed.response.model (missing)"}
+                    "evidence": "response.completed.response.model (missing)",
+                    **_reasoning_metadata({})}
         model = response.get("model")
         return {
             "model": model if isinstance(model, str) and model else None,
             "response_id": response.get("id") if isinstance(response.get("id"), str) else None,
             "evidence": "response.completed.response.model",
+            **_reasoning_metadata(response),
         }
 
     # A non-streaming Responses API reply is itself the final response object.
@@ -61,6 +87,7 @@ def _final_model(message: Any, event_name: str | None = None) -> dict[str, str |
             "model": model if isinstance(model, str) and model else None,
             "response_id": message.get("id") if isinstance(message.get("id"), str) else None,
             "evidence": "completed response.model",
+            **_reasoning_metadata(message),
         }
     return None
 
@@ -84,9 +111,9 @@ def _sse_messages(text: str) -> Iterator[tuple[dict[str, Any], str | None]]:
             data.append(line[5:].lstrip())
 
 
-def analyze_body(body: str) -> list[dict[str, str | None]]:
+def analyze_body(body: str) -> list[dict[str, Any]]:
     """Accept JSON, JSONL or SSE response bodies. Ignore request/session metadata."""
-    results: list[dict[str, str | None]] = []
+    results: list[dict[str, Any]] = []
     try:
         value = json.loads(body)
     except json.JSONDecodeError:
@@ -121,7 +148,7 @@ def analyze_body(body: str) -> list[dict[str, str | None]]:
     return results
 
 
-def analyze_file(path: Path) -> list[dict[str, str | None]]:
+def analyze_file(path: Path) -> list[dict[str, Any]]:
     raw = path.read_text(encoding="utf-8-sig")
     try:
         value = json.loads(raw)
@@ -129,7 +156,7 @@ def analyze_file(path: Path) -> list[dict[str, str | None]]:
         value = None
 
     if isinstance(value, dict) and isinstance(value.get("log"), dict):
-        results: list[dict[str, str | None]] = []
+        results: list[dict[str, Any]] = []
         for index, entry in enumerate(value["log"].get("entries", []), start=1):
             if not isinstance(entry, dict):
                 continue

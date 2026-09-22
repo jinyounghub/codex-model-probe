@@ -1,6 +1,6 @@
 # Codex Model Probe
 
-Live Windows GUI for inspecting the **requested model, session ID, and model reported in Codex's completed server response payload**. The two GUI editions have the same capture behavior.
+Live Windows GUI for inspecting the **requested model and reasoning effort**, the **model, reasoning effort, and reasoning token usage reported in Codex's completed server response**, plus local Codex project and conversation labels matched by thread ID. The two GUI editions have the same capture behavior.
 
 - [English setup and user guide](README.en.md)
 - [한국어 설치 및 사용 설명서](README.ko.md)

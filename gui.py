@@ -19,6 +19,7 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
+from codex_metadata import CodexMetadataResolver
 from model_probe import analyze_file
 from translations import translate
 
@@ -142,7 +143,7 @@ class App:
         self.root = root
         self.watch_only = "--watch-only" in sys.argv
         root.title(tr("Codex 요청·최종 모델 및 세션 모니터"))
-        root.geometry("1250x720")
+        root.geometry("1450x720")
         root.minsize(950, 580)
 
         self.proc: subprocess.Popen | None = None
@@ -151,6 +152,7 @@ class App:
         self.desktop_messages: queue.Queue[str] = queue.Queue()
         self.process_messages: queue.Queue[str] = queue.Queue()
         self.state = MonitorState()
+        self.codex_metadata = CodexMetadataResolver()
         self.offset = 0
         self.pending = b""
         self.selected_file = Path(HERE / "results.jsonl")
@@ -255,13 +257,21 @@ class App:
         table_frame.grid(row=3, column=0, sticky="nsew")
         table_frame.columnconfigure(0, weight=1)
         table_frame.rowconfigure(0, weight=1)
-        self.table = ttk.Treeview(table_frame, columns=("time", "session_id", "requested_model", "model",
-                                                        "comparison", "thread_id", "response_id", "transport", "evidence"),
+        self.table = ttk.Treeview(table_frame, columns=("time", "project_name", "conversation_title",
+                                                        "requested_model", "request_reasoning_effort", "model",
+                                                        "response_reasoning_effort", "reasoning_tokens", "comparison",
+                                                        "session_id", "thread_id", "response_id", "transport", "evidence"),
                                   show="headings")
         for name, label, width in (
-            ("time", tr("시각"), 85), ("session_id", tr("세션 ID"), 275),
-            ("requested_model", tr("요청 모델"), 180), ("model", tr("최종 응답 모델"), 180),
-            ("comparison", tr("값 비교"), 115), ("thread_id", tr("대화 ID"), 275),
+            ("time", tr("시각"), 85), ("project_name", tr("프로젝트"), 150),
+            ("conversation_title", tr("대화 제목"), 235),
+            ("requested_model", tr("요청 모델"), 145),
+            ("request_reasoning_effort", tr("요청 reasoning"), 125),
+            ("model", tr("최종 응답 모델"), 155),
+            ("response_reasoning_effort", tr("응답 reasoning"), 125),
+            ("reasoning_tokens", tr("reasoning 토큰"), 120),
+            ("comparison", tr("값 비교"), 115), ("session_id", tr("세션 ID"), 275),
+            ("thread_id", tr("대화 ID"), 275),
             ("response_id", tr("응답 ID"), 220), ("transport", tr("통신"), 95),
             ("evidence", tr("최종 페이로드 필드"), 270),
         ):
@@ -275,7 +285,7 @@ class App:
         horizontal_scroll.grid(row=1, column=0, sticky="ew")
         self.table.configure(yscrollcommand=scroll.set, xscrollcommand=horizontal_scroll.set)
 
-        ttk.Label(outer, text=tr("요청 모델·세션 ID는 실제 요청 메시지에서, 최종 모델은 서버의 완료 응답에서 읽습니다. 같은 응답으로 연결할 수 없으면 요청 정보는 '확인 불가'로 표시합니다. 기존 프록시를 감시하는 창에서는 원래 모니터를 켜두세요."),
+        ttk.Label(outer, text=tr("모델·reasoning은 실제 요청과 서버 완료 응답에서 읽고, 프로젝트·대화 제목은 로컬 Codex 메타데이터에서 대화 ID로 찾습니다. 연결할 수 없는 정보는 '확인 불가'로 표시합니다."),
                   wraplength=1180, foreground="#4b5563").grid(row=4, column=0, sticky="ew", pady=(10, 0))
 
     def _update_mode(self):
@@ -519,17 +529,27 @@ class App:
         for item in records:
             self._show_model({"kind": "model", "time_utc": None, "host": tr("파일"),
                               "response_id": item["response_id"], "model": item["model"], "transport": tr("파일"),
-                              "evidence": item["evidence"]})
+                              "evidence": item["evidence"],
+                              "response_reasoning_effort": item.get("response_reasoning_effort"),
+                              "reasoning_tokens": item.get("reasoning_tokens")})
         self.status_var.set(tr("파일 분석 완료 · 최종 응답 {count}개").format(count=len(records)))
 
     def _show_model(self, record: dict):
         if not self.state.consume(record):
             return
         comparison = model_comparison(record)
+        labels = self.codex_metadata.resolve(record.get("thread_id") or record.get("session_id"))
+        tokens = record.get("reasoning_tokens")
         self.table.insert("", 0, values=(
-            display_time(record.get("time_utc")), record.get("session_id") or tr("확인 불가"),
-            record.get("requested_model") or tr("확인 불가"), record.get("model") or tr("확인 불가"),
-            comparison, record.get("thread_id") or tr("확인 불가"), record.get("response_id") or "-",
+            display_time(record.get("time_utc")),
+            labels["project_name"] or tr("확인 불가"), labels["conversation_title"] or tr("확인 불가"),
+            record.get("requested_model") or tr("확인 불가"),
+            record.get("request_reasoning_effort") or tr("확인 불가"),
+            record.get("model") or tr("확인 불가"),
+            record.get("response_reasoning_effort") or tr("확인 불가"),
+            tokens if isinstance(tokens, int) and not isinstance(tokens, bool) else tr("확인 불가"),
+            comparison, record.get("session_id") or tr("확인 불가"),
+            record.get("thread_id") or tr("확인 불가"), record.get("response_id") or "-",
             record.get("transport") or "-", record.get("evidence") or "-",
         ), tags=("different",) if comparison == tr("값 다름") else ())
         children = self.table.get_children()

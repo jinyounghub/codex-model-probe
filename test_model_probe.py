@@ -12,11 +12,12 @@ class ModelProbeTests(unittest.TestCase):
         message = {"type": "response.create", "model": "requested", "client_metadata": {
             "session_id": "session-123", "thread_id": "thread-123", "turn_id": "turn-123"
         }}
-        self.assertEqual(request_metadata(message, websocket=True), {
-            "requested_model": "requested", "session_id": "session-123",
-            "thread_id": "thread-123", "turn_id": "turn-123",
-            "request_evidence": "response.create.model",
-        })
+        metadata = request_metadata(message, websocket=True)
+        self.assertEqual(metadata["requested_model"], "requested")
+        self.assertEqual(metadata["session_id"], "session-123")
+        self.assertEqual(metadata["thread_id"], "thread-123")
+        self.assertEqual(metadata["turn_id"], "turn-123")
+        self.assertEqual(metadata["request_evidence"], "response.create.model")
         self.assertIsNone(request_metadata({"type": "session_meta", "model": "other"}, websocket=True))
         self.assertIsNone(request_metadata({"type": "response.create", "model": None}, websocket=True))
 
@@ -25,10 +26,9 @@ class ModelProbeTests(unittest.TestCase):
             'data: {"type":"response.created","response":{"model":"requested-model"}}',
             'event: response.completed\ndata: {"response":{"id":"resp_1","model":"served-model"}}',
         ]) + "\n\n"
-        self.assertEqual(analyze_body(body), [{
-            "model": "served-model", "response_id": "resp_1",
-            "evidence": "response.completed.response.model",
-        }])
+        self.assertEqual(len(analyze_body(body)), 1)
+        self.assertEqual(analyze_body(body)[0]["model"], "served-model")
+        self.assertEqual(analyze_body(body)[0]["response_id"], "resp_1")
 
     def test_request_and_session_model_are_ignored(self):
         body = '\n'.join([
@@ -39,10 +39,26 @@ class ModelProbeTests(unittest.TestCase):
         self.assertEqual(analyze_body(body), [])
 
     def test_missing_final_model_is_unknown(self):
-        self.assertEqual(analyze_body('{"type":"response.completed","response":{"id":"r"}}'), [{
-            "model": None, "response_id": "r",
-            "evidence": "response.completed.response.model",
-        }])
+        result = analyze_body('{"type":"response.completed","response":{"id":"r"}}')[0]
+        self.assertIsNone(result["model"])
+        self.assertEqual(result["response_id"], "r")
+
+    def test_actual_request_and_completed_response_reasoning_fields(self):
+        request = {"type": "response.create", "model": "gpt-6-astra",
+                   "reasoning": {"effort": "xhigh", "context": "all_turns"}}
+        metadata = request_metadata(request, websocket=True)
+        self.assertEqual(metadata["request_reasoning_effort"], "xhigh")
+        self.assertEqual(metadata["request_reasoning_context"], "all_turns")
+        response = {"type": "response.completed", "response": {
+            "id": "resp_1", "model": "gpt-6-astra",
+            "reasoning": {"effort": "xhigh", "mode": "standard", "context": "all_turns"},
+            "usage": {"output_tokens_details": {"reasoning_tokens": 0}},
+        }}
+        result = analyze_body(json.dumps(response))[0]
+        self.assertEqual(result["response_reasoning_effort"], "xhigh")
+        self.assertEqual(result["response_reasoning_mode"], "standard")
+        self.assertEqual(result["response_reasoning_context"], "all_turns")
+        self.assertEqual(result["reasoning_tokens"], 0)
 
     def test_non_streaming_completed_response(self):
         self.assertEqual(analyze_body('{"object":"response","status":"completed","id":"r","model":"m"}')[0]["model"], "m")

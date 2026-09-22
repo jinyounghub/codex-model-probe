@@ -30,11 +30,14 @@ class WebSocketCaptureTests(unittest.TestCase):
             self.probe.websocket_message(self.flow)
 
     def test_only_completed_server_websocket_model_is_reported(self):
-        self.send({"model": "requested", "type": "response.create", "client_metadata": {
+        self.send({"model": "requested", "type": "response.create",
+                   "reasoning": {"effort": "high", "context": "all_turns"}, "client_metadata": {
             "session_id": "session-1", "thread_id": "thread-1", "turn_id": "turn-1"
         }}, from_client=True)
         self.send({"type": "response.created", "response": {"id": "r1", "model": "initial"}})
-        self.send({"type": "response.completed", "response": {"id": "r1", "model": "served"}})
+        self.send({"type": "response.completed", "response": {"id": "r1", "model": "served",
+                   "reasoning": {"effort": "high", "mode": "standard"},
+                   "usage": {"output_tokens_details": {"reasoning_tokens": 12}}}})
         models = [item for item in self.records if item["kind"] == "model"]
         self.assertEqual([(item["model"], item["response_id"], item["transport"]) for item in models],
                          [("served", "r1", "websocket")])
@@ -43,6 +46,9 @@ class WebSocketCaptureTests(unittest.TestCase):
         self.assertEqual(models[0]["thread_id"], "thread-1")
         self.assertEqual(models[0]["turn_id"], "turn-1")
         self.assertEqual(models[0]["request_pairing"], "response.created.id")
+        self.assertEqual(models[0]["request_reasoning_effort"], "high")
+        self.assertEqual(models[0]["response_reasoning_effort"], "high")
+        self.assertEqual(models[0]["reasoning_tokens"], 12)
         self.assertEqual(sum(item["kind"] == "response_seen" for item in self.records), 2)
 
     def test_multiple_requests_are_paired_with_their_response_ids(self):

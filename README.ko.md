@@ -1,6 +1,6 @@
 # Codex Model Probe: 한글판 사용 설명서
 
-Codex가 **실제 통신에서 요청한 모델**과 서버의 **완료 응답 페이로드가 보고한 모델**, 세션 ID를 실시간으로 나란히 보여주는 Windows 도구입니다. 한 번 검사하고 끝나는 방식이 아니라 프록시와 Codex를 켜둔 동안 계속 기록합니다.
+Codex가 **실제 통신에서 요청한 모델과 reasoning effort**, 서버의 **완료 응답 페이로드가 보고한 모델·reasoning effort·토큰 수**, 로컬 대화 제목과 프로젝트명을 실시간으로 나란히 보여주는 Windows 도구입니다. 한 번 검사하고 끝나는 방식이 아니라 프록시와 Codex를 켜둔 동안 계속 기록합니다.
 
 > `최종 응답 모델`은 `response.completed.response.model` 등 서버 완료 페이로드의 문자열입니다. 실제 모델 가중치나 내부 라우팅을 독립적으로 증명하는 값은 아닙니다. 요청과 완료 응답을 연결할 수 없는 경우 요청 모델과 세션 ID는 `확인 불가`로 표시합니다.
 
@@ -53,16 +53,22 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install_mitmproxy.ps1
 
 | 열 | 출처와 의미 |
 | --- | --- |
+| 프로젝트, 대화 제목 | 요청의 대화 ID를 로컬 Codex 메타데이터와 연결한 표시 이름. 프로젝트 ID가 없으면 저장된 프로젝트 경로와 대화 작업 폴더가 일치하는지 확인합니다. |
 | 세션 ID, 대화 ID | 실제 요청의 `client_metadata.session_id`, `client_metadata.thread_id` |
 | 요청 모델 | 실제 `response.create.model` 또는 HTTP 요청 본문 `model` |
+| 요청 reasoning | 실제 요청의 `reasoning.effort` (예: `high`, `xhigh`) |
 | 최종 응답 모델 | 서버의 `response.completed.response.model`, 또는 완료된 일반 Response 객체의 `model` |
+| 응답 reasoning | 서버 완료 응답의 `response.reasoning.effort` |
+| reasoning 토큰 | 서버 완료 응답의 `usage.output_tokens_details.reasoning_tokens`. `0`은 서버가 0으로 보고한 값입니다. |
 | 값 비교 | 위 두 문자열의 일치 여부만 비교합니다. `값 다름`은 내부 라우팅에 대한 확정 판정이 아닙니다. |
 | 응답 ID | 요청과 완료 응답을 연결할 때 사용한 서버 응답 ID |
 | 최종 페이로드 필드 | 최종 모델을 읽은 근거 필드 |
 
-결과는 같은 폴더의 `results.jsonl`에 계속 추가됩니다. 파일에 원본 프롬프트, 응답 본문, 인증 헤더는 저장하지 않지만 **세션/대화/턴 ID**가 포함되므로 개인 데이터로 취급하세요. GitHub 저장소와 배포 ZIP에는 결과 파일이 들어 있지 않습니다. GUI에는 최신 500개 행을 표시하며 파일에는 계속 누적됩니다. 가로 스크롤로 오른쪽 열을 확인할 수 있습니다.
+결과는 같은 폴더의 `results.jsonl`에 계속 추가됩니다. 요청/응답 reasoning effort와 응답 mode/context, reasoning 토큰 수도 기록합니다. 파일에 원본 프롬프트, 응답 본문, 인증 헤더, 대화 제목은 저장하지 않지만 **세션/대화/턴 ID**가 포함되므로 개인 데이터로 취급하세요. GitHub 저장소와 배포 ZIP에는 결과 파일이 들어 있지 않습니다. GUI에는 최신 500개 행을 표시하며 파일에는 계속 누적됩니다. 가로 스크롤로 오른쪽 열을 확인할 수 있습니다.
 
-서버 응답에 세션 제목은 없어서 대화 제목은 표시하지 않습니다. WebSocket에서는 같은 연결의 요청을 다음 `response.created.response.id`에 순서대로 연결하고 최종 `response.completed.response.id`로 검증합니다. 연결이 불확실하면 요청 정보는 비워 둡니다.
+서버 응답 자체에는 프로젝트나 대화 제목이 없습니다. GUI는 `~/.codex/state_5.sqlite`의 대화 ID와 표시 제목을 **읽기 전용**으로 연결하며, 저장된 프로젝트 경로로 프로젝트명을 찾습니다. 로컬 기록이 없거나 다른 호스트의 대화이면 `확인 불가`로 표시합니다. 응답 ID는 개별 응답을 식별하므로 대화 제목으로 바꾸지 않고 원래 값을 유지합니다. WebSocket에서는 같은 연결의 요청을 다음 `response.created.response.id`에 순서대로 연결하고 최종 `response.completed.response.id`로 검증합니다. 연결이 불확실하면 요청 정보는 비워 둡니다.
+
+`reasoning.effort`는 요청 설정과 서버가 보고한 설정이며, 모델 내부의 실제 추론 과정이나 숨겨진 사고 내용을 보여주지는 않습니다. reasoning 토큰 수도 서버 사용량 보고값입니다. 필드가 없는 경우 `확인 불가`로 표시합니다. **기존 프록시가 이전 버전의 `capture.py`를 실행 중이면 새 필드는 다음 정상 재시작 후 기록됩니다.**
 
 ## 5. 기존 프록시의 기록만 보기
 
@@ -104,4 +110,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_windows.ps1
 python .\package_release.py
 ```
 
-GUI 소스는 표준 라이브러리로 실행되며, 실시간 캡처에는 같은 폴더의 `capture.py`, `model_probe.py` 및 설치한 mitmproxy가 필요합니다.
+GUI 소스는 표준 라이브러리로 실행되며, 실시간 캡처에는 같은 폴더의 `capture.py`, `model_probe.py` 및 설치한 mitmproxy가 필요합니다. 소스에서 GUI를 실행할 때는 `codex_metadata.py`도 같은 폴더에 둡니다.
