@@ -1,6 +1,8 @@
 """A detected runtime must not be restored by the release tooling."""
 
 import unittest
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 import package_release
@@ -18,12 +20,23 @@ class DistributionHoldTests(unittest.TestCase):
             archive.assert_not_called()
             path.parent.mkdir.assert_not_called()
 
-    def test_packaging_stops_before_writing_release_files(self):
-        with patch("package_release.DIST") as dist, patch("package_release.ZipFile") as archive:
-            with self.assertRaisesRegex(RuntimeError, "distribution is on hold"):
-                package_release.main()
-            dist.mkdir.assert_not_called()
-            archive.assert_not_called()
+    def test_new_package_rejects_drivers_old_runtime_and_private_records(self):
+        for filename in ("WinDivert64.sys", "windows-redirector.exe", "mitmdump.exe", "results.jsonl", "mitmproxy-ca.pem"):
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as directory:
+                bundle = Path(directory)
+                (bundle / filename).write_text("test fixture")
+                with self.assertRaisesRegex(ValueError, "Unexpected release file"):
+                    package_release.validate_bundle(bundle, require_manifest=False)
+
+    def test_manifest_detects_modified_bundled_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            bundle = Path(directory)
+            (bundle / "app.txt").write_text("original")
+            package_release.write_manifest(bundle)
+            package_release.validate_bundle(bundle)
+            (bundle / "app.txt").write_text("changed")
+            with self.assertRaisesRegex(ValueError, "manifest mismatch"):
+                package_release.validate_bundle(bundle)
 
 
 if __name__ == "__main__":

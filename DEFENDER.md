@@ -1,6 +1,14 @@
 # Windows Defender detection in v0.3.0
 
+## v0.4.0 architecture change
+
+The new installer uses an embedded, explicit HTTP proxy built from the Python mitmproxy package. It removes process capture and transparent capture as product features. The bundle excludes `mitmproxy_windows`, `pydivert`, WinDivert, the Windows redirector, kernel drivers, and the old standalone `mitmdump.exe`. Upstream's unconditional transparent-mode platform import is replaced with an adapter that reports the feature as unsupported; the runtime exposes only regular HTTP mode on `127.0.0.1`. The restricted worker does not accept arbitrary proxy modes or scripts and does not load `config.yaml`.
+
+Builds use an inspectable directory layout, include a file hash manifest and dependency notices, and reject forbidden components before packaging. The installer is per-user, includes shortcuts and uninstall support, and does not alter Defender settings or certificate trust. Certificate installation still requires the user's in-app confirmation. This is a capability and dependency reduction, not a determination that the old detection was a false positive. The application remains unsigned.
+
 ## 한국어
+
+v0.4.0은 프로세스 캡처·투명 프록시 기능을 제거하고 일반 HTTP 프록시만 내장한 설치판입니다. WinDivert, `pydivert`, Windows 리디렉터, 드라이버, 기존 `mitmdump.exe`를 포함하지 않습니다. 인증서 신뢰는 앱에서 사용자 동의를 받은 뒤에만 설정합니다. 아래는 v0.3.0의 과거 탐지 기록이며, 기존 파일의 오탐 여부는 여전히 확정하지 않았습니다.
 
 2026-09-22, v0.3.0 ZIP에 포함된 `mitmdump.exe`가 Microsoft Defender에서 **`Trojan:Win64/WinDivert`**로 탐지됐습니다. 해당 PC에서 실행 차단과 파일 제거를 확인했습니다. **차단된 PC에서는 간편 연결과 실시간 캡처를 사용할 수 없습니다.** 인증서를 다시 설치해도 이 문제는 해결되지 않습니다.
 
@@ -11,7 +19,7 @@
 - Codex가 프록시 연결 때문에 재연결 중이면 Codex를 완전히 닫고 평소 바로가기로 다시 여세요.
 - 기존 결과 파일은 GUI의 `--watch-only`로 계속 열 수 있습니다. 새 통신은 수집되지 않습니다.
 
-소스의 오류 안내는 WinError 225/226과 파일 누락을 구별하도록 수정했습니다. 배포 스크립트는 같은 실행 파일의 재다운로드·재패키징 전에 중단합니다. **기존 v0.3.0 ZIP은 이 수정 사항을 포함하지 않으며, 수정 EXE는 아직 배포하지 않았습니다.**
+오류 안내는 WinError 225/226과 파일 누락을 구별합니다. 예전 `vendor_mitmdump.py`는 같은 실행 파일을 다시 내려받거나 재패키징하지 않도록 계속 중단 상태입니다. **기존 v0.3.0 ZIP에는 v0.4.0 변경 사항이 반영되지 않습니다.**
 
 ## English
 
@@ -21,7 +29,7 @@ The downloaded Korean ZIP matches the published release's SHA-256. During releas
 
 Check Windows Security > Virus & threat protection > Protection history for the detection on `mitmdump.exe`. Keep the block in place pending a security review or a verified corrected release. Disabling Defender, adding exclusions, or restoring the quarantined file is not a supported resolution. To recover ordinary Codex connectivity, fully close Codex and reopen it using its normal shortcut. Existing records can still be viewed with `--watch-only`; no new traffic is captured.
 
-The source now distinguishes WinError 225/226 from a missing executable, and release scripts stop before downloading or repackaging this runtime. **The existing v0.3.0 ZIPs do not include those source changes. No corrected EXE release has been published.**
+The source distinguishes WinError 225/226 from a missing executable. The legacy `vendor_mitmdump.py` still stops before downloading or repackaging the affected standalone runtime. **The existing v0.3.0 ZIPs do not include the v0.4.0 architecture changes.**
 
 ## Review evidence
 

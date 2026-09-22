@@ -1,6 +1,8 @@
 """Text for the two Windows GUI editions."""
 
 EN = {
+    "내장 HTTP 프록시 · 프로세스 캡처 드라이버 없음": "Built-in HTTP proxy · no process capture driver",
+    "호스트는 chatgpt.com, api.openai.com 중에서 선택하세요.": "Select hosts from chatgpt.com and api.openai.com.",
     "확인 불가": "Unknown",
     "값 일치": "Values match",
     "값 다름": "Values differ",
@@ -77,8 +79,8 @@ EN = {
         "Windows security software blocked or removed the proxy file.\n\nFile: {path}\nError: {error}\n\nCheck this file's detection name in Windows Security > Virus & threat protection > Protection history. Quick connect is unavailable until the block is resolved. Check the GitHub release notice for security review results and a corrected release.",
     "프록시 파일 없음 · 보호 기록 확인 필요": "Proxy file missing · check Protection history",
     "프록시 파일을 찾을 수 없음": "Proxy file not found",
-    "프록시 파일이 없습니다: {path}\n\n이전에 WinError 225/226이 표시됐다면 보안 프로그램이 파일을 제거했을 수 있습니다. 먼저 Windows 보안 > 바이러스 및 위협 방지 > 보호 기록을 확인하세요. 탐지 기록이 있으면 GitHub 공지의 보안 검토 결과를 확인하세요. 탐지 기록이 없으면 ZIP 압축 해제 위치와 고급 설정의 실행 파일 경로를 확인하세요.":
-        "Proxy file missing: {path}\n\nIf WinError 225/226 appeared earlier, security software may have removed the file. First check Windows Security > Virus & threat protection > Protection history. If a detection is listed, check the GitHub notice for security review results. If there is no detection, check the ZIP extraction folder and the executable path in advanced settings.",
+    "프록시 파일이 없습니다: {path}\n\n이전에 WinError 225/226이 표시됐다면 보안 프로그램이 파일을 제거했을 수 있습니다. 먼저 Windows 보안 > 바이러스 및 위협 방지 > 보호 기록을 확인하세요. 탐지 기록이 있으면 GitHub 공지의 보안 검토 결과를 확인하세요. 탐지 기록이 없으면 설치 프로그램으로 앱을 다시 설치하거나, 휴대용 ZIP의 _internal 폴더를 포함한 전체 파일이 있는지 확인하세요.":
+        "Proxy file missing: {path}\n\nIf WinError 225/226 appeared earlier, security software may have removed the file. First check Windows Security > Virus & threat protection > Protection history. If a detection is listed, check the GitHub notice for security review results. If there is no detection, reinstall the app with the installer or check that all portable ZIP files, including _internal, are present.",
     "인증서 신뢰 필요": "Certificate trust required",
     "현재 mitmproxy 인증서가 Windows의 신뢰할 수 있는 루트 인증 기관에 없습니다. 먼저 '인증서 파일 보기'에서 현재 사용자 루트 저장소에 설치하세요. 설치 전 캡처를 시작하면 Codex 연결이 끊길 수 있습니다.":
         "The current mitmproxy certificate is not in the Windows Trusted Root store. Use Open certificate file and install it under Current User > Trusted Root Certification Authorities before capture.",

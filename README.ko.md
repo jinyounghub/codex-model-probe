@@ -1,21 +1,25 @@
 # Codex Model Probe: 한글판 사용 설명서
 
-> **2026-09-22 알려진 문제:** v0.3.0에 포함된 `mitmdump.exe`의 Defender 탐지(`Trojan:Win64/WinDivert`)를 확인했습니다. 차단된 PC에서는 간편 연결을 사용할 수 없습니다. 아래 실행 절차를 다시 시도하기 전에 [차단 관련 안내](https://github.com/jinyounghub/codex-model-probe/blob/main/DEFENDER.md#한국어)를 확인하세요. 수정 EXE는 아직 배포하지 않았습니다.
+> **v0.4.0:** 설치 프로그램에 일반 HTTP 프록시를 내장했습니다. v0.3.0의 `mitmdump.exe`와 프로세스 캡처용 WinDivert 드라이버는 포함하지 않습니다. [변경 내역과 기존 탐지 기록](https://github.com/jinyounghub/codex-model-probe/blob/main/DEFENDER.md#한국어).
 
 Codex가 **실제 통신에서 요청한 모델과 reasoning effort**, 서버의 **완료 응답 페이로드가 보고한 모델·reasoning effort·토큰 수**, 로컬 대화 제목과 프로젝트명을 실시간으로 나란히 보여주는 Windows 도구입니다. 한 번 검사하고 끝나는 방식이 아니라 프록시와 Codex를 켜둔 동안 계속 기록합니다.
 
 > `최종 응답 모델`은 `response.completed.response.model` 등 서버 완료 페이로드의 문자열입니다. 실제 모델 가중치나 내부 라우팅을 독립적으로 증명하는 값은 아닙니다. 요청과 완료 응답을 연결할 수 없는 경우 요청 모델과 세션 ID는 `확인 불가`로 표시합니다.
 
-## 1. 설치 없이 시작
+## 1. 설치 파일 하나로 시작
 
 Windows 10/11과 Windows Codex 데스크톱 앱이 필요합니다. **Python 설치와 PowerShell 스크립트 실행은 필요 없습니다.**
 
-1. [Releases](https://github.com/jinyounghub/codex-model-probe/releases)에서 `codex-model-probe-ko-win64.zip`을 내려받아 **압축을 풉니다**. `CodexModelMonitor-ko.exe`, `mitmdump.exe`, `capture.py`, `model_probe.py`를 같은 폴더에 둡니다. 한글판 실행 파일은 `CodexModelMonitor-ko.exe`입니다.
+1. [최신 Releases](https://github.com/jinyounghub/codex-model-probe/releases/latest)에서 **`CodexModelProbe-Setup-ko.exe`**를 내려받아 실행하고 **설치**를 누릅니다. 현재 사용자 폴더에 설치되며 시작 메뉴와 바탕화면에 **Codex Model Probe (ko)** 바로가기가 생깁니다. 영문판 설치 파일은 `CodexModelProbe-Setup-en.exe`입니다.
 2. 실행 파일을 열고 **간편 연결 시작**을 누릅니다. 처음 실행하면 로컬 프록시와 인증서를 준비합니다. 기본 포트가 사용 중이면 빈 포트를 자동으로 고릅니다.
 3. 처음에만 표시되는 **인증서 신뢰 확인** 창에서 이 PC에서 만든 인증서의 SHA-256 지문과 신뢰 범위를 확인하고 선택합니다. 동의하면 앱이 Windows **현재 사용자 > 신뢰할 수 있는 루트 인증 기관**에 해당 인증서를 추가합니다. 관리자 권한은 요구하지 않습니다.
 4. 현재 Codex 앱을 **완전히 종료**합니다. 모니터가 Codex를 프록시 환경으로 다시 열면 메시지를 보내고 표의 새 행을 확인합니다. 모니터 창을 켜두면 계속 기록됩니다.
 
-이미 실행 중인 Codex에는 프록시 설정을 붙일 수 없어 **한 번 종료 후 재실행**해야 합니다. 이 방식은 Microsoft Store/Appx 형태의 Codex 앱을 자동으로 찾습니다. ZIP에 포함된 `mitmdump.exe`는 공식 mitmproxy 12.2.3 Windows 단독 실행 파일이며 Python을 별도 설치하지 않습니다. 실행 파일들은 코드 서명이 없으므로 [배포 페이지의 SHA256SUMS.txt](https://github.com/jinyounghub/codex-model-probe/releases)로 ZIP 무결성을 확인할 수 있습니다.
+이미 실행 중인 Codex에는 프록시 설정을 붙일 수 없어 **한 번 종료 후 재실행**해야 합니다. 이 방식은 Microsoft Store/Appx 형태의 Codex 앱을 자동으로 찾습니다. 기본 설치 위치는 `%LOCALAPPDATA%\Programs\CodexModelProbe-ko`이며 관리자 권한이나 별도 Python 설치가 필요 없습니다. 설치 프로그램 자체는 인증서를 추가하지 않습니다.
+
+설치 없이 사용하려면 `codex-model-probe-ko-win64.zip`을 **새 폴더에 전부 압축 해제**하고 `CodexModelMonitor-ko.exe`를 실행하세요. `_internal` 폴더를 반드시 함께 유지하세요. 이전 v0.3.0 폴더에 덮어쓰지 마세요. 이전 `mitmdump.exe`는 필요하지 않습니다. 결과 기록과 현재 PC 인증서는 기존 위치를 사용합니다.
+
+배포 파일에는 코드 서명이 없습니다. [SHA256SUMS.txt](https://github.com/jinyounghub/codex-model-probe/releases/latest)로 설치 파일·ZIP의 무결성을 확인할 수 있고, 설치 폴더의 `BUNDLE-MANIFEST.json`에는 내부 파일 해시가 있습니다. 모든 보안 제품에서 탐지가 발생하지 않는다고 보장하지는 않습니다.
 
 ## 2. 인증서와 연결 관리
 
@@ -25,7 +29,7 @@ Windows 10/11과 Windows Codex 데스크톱 앱이 필요합니다. **Python 설
 
 ## 3. 고급 설정과 Codex CLI
 
-**고급 설정 보기**를 누르면 수동 프록시 시작, 포트·호스트·결과 파일 설정, 인증서 파일 보기, CLI 연결 기능이 나옵니다. CLI를 사용하려면 프록시가 켜진 상태에서 인증서 신뢰를 마친 뒤 **프록시로 Codex CLI 열기**를 누릅니다. 이 버튼은 새 CLI 프로세스에만 프록시 환경 변수를 지정하며 Windows 전체 프록시 설정을 바꾸지 않습니다.
+**고급 설정 보기**를 누르면 수동 프록시 시작, 포트·호스트·결과 파일 설정, 인증서 파일 보기, CLI 연결 기능이 나옵니다. 내장 프록시는 `127.0.0.1`에서만 대기하며 HTTPS 분석 대상은 `chatgpt.com`, `api.openai.com`입니다. CLI를 사용하려면 프록시가 켜진 상태에서 인증서 신뢰를 마친 뒤 **프록시로 Codex CLI 열기**를 누릅니다. 이 버튼은 새 CLI 프로세스에만 프록시 환경 변수를 지정하며 Windows 전체 프록시 설정을 바꾸지 않습니다. 프로세스 캡처 모드는 제거했습니다.
 
 ## 4. 표와 결과 파일 읽기
 
@@ -72,7 +76,7 @@ Windows 10/11과 Windows Codex 데스크톱 앱이 필요합니다. **Python 설
 | 요청 모델/세션 ID가 `확인 불가` | 완료 메시지만 잡혔거나 요청과 `response.created`를 연결하지 못한 경우. 다음 요청부터 다시 확인 |
 | 포트 8080 사용 중 | 간편 연결은 빈 포트를 자동 선택합니다. 수동 모드에서는 고급 설정에서 포트를 변경하세요. |
 
-`Codex 프로세스 캡처 (실험적)`는 이 PC에서 Codex 연결 오류를 일으킨 적이 있어 권장 경로는 **수동 HTTP 프록시**입니다. `캡처 파일 분석`은 외부 HAR/JSON/SSE 파일의 서버 완료 응답을 읽으며, 일반 HAR에는 WebSocket 메시지가 없을 수 있습니다.
+v0.4.0부터 프로세스 캡처 모드는 제공하지 않습니다. 간편 연결과 수동 시작 모두 일반 HTTP 프록시를 사용합니다. `캡처 파일 분석`은 외부 HAR/JSON/SSE 파일의 서버 완료 응답을 읽으며, 일반 HAR에는 WebSocket 메시지가 없을 수 있습니다.
 
 ## 7. 인증서 제거와 보안
 
@@ -90,4 +94,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_windows.ps1
 python .\package_release.py
 ```
 
-GUI 소스는 표준 라이브러리로 실행되며, 실시간 캡처에는 같은 폴더의 `capture.py`, `model_probe.py` 및 mitmdump가 필요합니다. 소스에서 GUI를 실행할 때는 `codex_metadata.py`도 같은 폴더에 둡니다. 현재 Windows 빌드와 패키징은 보안 검토 전까지 문제의 12.2.3 실행 파일을 다운로드하거나 패키징하기 전에 중단합니다. [DEFENDER.md](DEFENDER.md#한국어)를 참고하세요.
+개발 환경의 Python은 3.12 이상이며 `mitmproxy==12.2.3`을 사용합니다. GUI와 `proxy_runtime.py`, `capture.py`, `model_probe.py`, `codex_metadata.py`, `translations.py`를 함께 둡니다. 실시간 캡처는 내장 worker가 담당합니다. `build_windows.ps1` 한 번으로 두 언어의 폴더형 앱, 설치 EXE, 휴대용 ZIP, SHA-256 목록을 생성합니다. 빌드 도구용 Inno Setup은 공식 다운로드의 서명을 검증한 뒤 준비합니다. 배포 전에 WinDivert·리디렉터·드라이버·개인 기록 포함 여부와 내부 파일 해시를 검사합니다. 예전 `vendor_mitmdump.py` 경로는 계속 중단 상태입니다.
+
+## 8. 업데이트와 제거
+
+프록시를 사용하는 Codex와 모니터를 종료한 뒤 새 설치 파일을 실행하세요. 제거는 Windows **설정 > 앱 > 설치된 앱 > Codex Model Probe**에서 할 수 있습니다. 제거해도 결과 기록과 사용자 인증서는 보존합니다. 인증서를 더 이상 사용하지 않으면 위 7절에 따라 해당 인증서만 직접 제거하세요.

@@ -1,21 +1,25 @@
 # Codex Model Probe: English user guide
 
-> **Known issue, 2026-09-22:** Defender detected the `mitmdump.exe` bundled in v0.3.0 as `Trojan:Win64/WinDivert`. Quick connect is unavailable on affected PCs. Read the [detection notice](https://github.com/jinyounghub/codex-model-probe/blob/main/DEFENDER.md) before retrying the steps below. No corrected EXE release has been published yet.
+> **v0.4.0:** The installer includes an explicit HTTP proxy. The old standalone `mitmdump.exe` and WinDivert process-capture drivers are no longer bundled. See the [architecture change and historical detection record](https://github.com/jinyounghub/codex-model-probe/blob/main/DEFENDER.md).
 
 This Windows tool continuously displays the **model and reasoning effort requested in the actual Codex network message**, the **model, reasoning effort, and reasoning token usage reported by the server's completed response**, plus locally matched project and conversation labels. It keeps recording while the proxy and Codex remain open.
 
 > “Final response model” means a string from `response.completed.response.model` or another completed server response payload. It does not independently prove which model weights or internal route produced the answer. If the request and completion cannot be paired, the requested model and session ID are shown as `Unknown`.
 
-## 1. Start without installing dependencies
+## 1. Start with one installer
 
 Windows 10/11 and the Windows Codex desktop app are required. **You do not need to install Python or run a PowerShell setup script.**
 
-1. Download `codex-model-probe-en-win64.zip` from [Releases](https://github.com/jinyounghub/codex-model-probe/releases) and **extract** it. Keep `CodexModelMonitor-en.exe`, `mitmdump.exe`, `capture.py`, and `model_probe.py` together. Open `CodexModelMonitor-en.exe`.
+1. Download **`CodexModelProbe-Setup-en.exe`** from the [latest release](https://github.com/jinyounghub/codex-model-probe/releases/latest), open it, and click **Install**. It installs for the current user and creates **Codex Model Probe (en)** shortcuts on the desktop and Start menu. The Korean installer is `CodexModelProbe-Setup-ko.exe`.
 2. Click **Quick connect**. The monitor prepares the local proxy and certificate. It selects a free port if the default is busy.
 3. On the first run, inspect the locally generated certificate's SHA-256 fingerprint and trust scope in **Confirm certificate trust**. If you agree, the app adds that certificate to **Current User > Trusted Root Certification Authorities**. Administrator rights are not required.
 4. **Fully close** the running Codex app. The monitor reopens it through the proxy. Send a message and look for a new row. Monitoring continues while the monitor remains open.
 
-A running Codex process cannot inherit new proxy settings, so one restart is required. Automatic reopening currently supports the Microsoft Store/Appx Codex app. The ZIP includes the official mitmproxy 12.2.3 standalone `mitmdump.exe`; no separate Python installation is needed. The executables are unsigned. You can check the ZIP against the release's `SHA256SUMS.txt`.
+A running Codex process cannot inherit new proxy settings, so one restart is required. Automatic reopening currently supports the Microsoft Store/Appx Codex app. The default installation folder is `%LOCALAPPDATA%\Programs\CodexModelProbe-en`. No administrator rights or separate Python installation are needed. The installer itself does not add certificates.
+
+For portable use, extract **all** of `codex-model-probe-en-win64.zip` into a **new folder** and open `CodexModelMonitor-en.exe`. Keep `_internal` beside the EXE. Do not overlay a v0.3.0 folder; its old `mitmdump.exe` is not needed. Existing results and this PC's certificate stay in their previous locations.
+
+The application and installer are unsigned. Check installer/ZIP integrity against `SHA256SUMS.txt`; `BUNDLE-MANIFEST.json` lists internal file hashes. This architecture change does not guarantee acceptance by every security product.
 
 ## 2. Certificate and connection management
 
@@ -25,7 +29,7 @@ To finish, close the Codex app opened through the proxy first, click **Stop conn
 
 ## 3. Advanced settings and Codex CLI
 
-Click **Show advanced settings** for manual proxy controls, port/host/result-file settings, the certificate file, and CLI support. To use the CLI, start the proxy, trust the certificate, then click **Open Codex CLI via proxy**. That button sets proxy environment variables only for the new CLI process. It does not change Windows-wide proxy settings.
+Click **Show advanced settings** for manual proxy controls, port/host/result-file settings, the certificate file, and CLI support. The built-in proxy listens only on `127.0.0.1` and limits HTTPS inspection to `chatgpt.com` and `api.openai.com`. To use the CLI, start the proxy, trust the certificate, then click **Open Codex CLI via proxy**. That button sets proxy environment variables only for the new CLI process. It does not change Windows-wide proxy settings. Process capture has been removed.
 
 ## 4. Read the table and results file
 
@@ -72,7 +76,7 @@ Keep the original monitor window open because it owns the proxy. Closing the wat
 | Requested model or session is **Unknown** | Only the completion may have been captured, or the request could not be paired with `response.created`. Try another request. |
 | Port 8080 is occupied | Quick connect chooses a free port. In manual mode, change the port in advanced settings. |
 
-**Codex process capture (experimental)** caused connection errors on the machine used for testing. The recommended mode is **Manual HTTP proxy**. **Analyze capture file** can inspect a separate HAR/JSON/SSE file, although ordinary HAR exports may omit WebSocket messages.
+Process capture is unavailable starting with v0.4.0. Quick connect and manual start both use the explicit HTTP proxy. **Analyze capture file** can inspect a separate HAR/JSON/SSE file, although ordinary HAR exports may omit WebSocket messages.
 
 ## 7. Certificate removal and security
 
@@ -90,4 +94,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_windows.ps1
 python .\package_release.py
 ```
 
-The GUI itself uses Python's standard library. Live capture requires `capture.py`, `model_probe.py`, and mitmdump in the same extracted folder. Running the GUI from source also requires `codex_metadata.py` beside `gui.py`. Windows release builds and packaging currently stop before downloading or packaging the affected 12.2.3 runtime, pending security review. See [DEFENDER.md](DEFENDER.md).
+The development environment requires Python 3.12+ and `mitmproxy==12.2.3`. Keep `gui.py`, `proxy_runtime.py`, `capture.py`, `model_probe.py`, `codex_metadata.py`, and `translations.py` together. Live capture runs in the embedded worker. One invocation of `build_windows.ps1` produces both language bundles, installers, portable ZIPs, and SHA-256 sums. The build prepares Inno Setup after checking the official download's publisher signature. Packaging rejects capture drivers, redirectors, private records, or manifest mismatches. The legacy `vendor_mitmdump.py` path remains on hold.
+
+## 8. Update and uninstall
+
+Close Codex sessions using the proxy and the monitor before installing an update. Uninstall through Windows **Settings > Apps > Installed apps > Codex Model Probe**. Uninstalling preserves results and the user's certificate. If you no longer need the certificate, remove only that certificate as described in section 7.

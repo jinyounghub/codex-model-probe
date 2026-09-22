@@ -7,7 +7,6 @@ import json
 import hashlib
 import os
 import queue
-import re
 import shutil
 import socket
 import ssl
@@ -24,6 +23,7 @@ from tkinter import filedialog, messagebox, ttk
 from codex_metadata import CodexMetadataResolver
 from model_probe import analyze_file
 from translations import translate
+from proxy_runtime import parse_hosts
 
 
 HERE = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent
@@ -47,21 +47,14 @@ def clean_child_environment() -> dict[str, str]:
     return env
 
 
-def default_mitmdump() -> str:
-    explicit = os.environ.get("CODEX_MODEL_PROBE_MITMDUMP")
-    bundled = HERE / "mitmdump.exe"
-    # Retain a selected path even if antivirus removed it; do not silently
-    # substitute a different runtime after a packaged executable disappears.
-    if explicit:
-        return explicit
-    if getattr(sys, "frozen", False):
-        return str(bundled)
-    packaged = HERE / ".venv" / "Scripts" / "mitmdump.exe"
-    local = HERE.parents[1] / "work" / "mitmproxy-venv" / "Scripts" / "mitmdump.exe"
-    for candidate in (str(bundled), str(packaged), str(local), shutil.which("mitmdump")):
-        if candidate and Path(candidate).is_file():
-            return str(candidate)
-    return ""
+def proxy_command(port: int, output: Path, hosts: str, confdir: Path | None = None) -> list[str]:
+    command = [sys.executable]
+    if not getattr(sys, "frozen", False):
+        command.append(str(HERE / "gui.py"))
+    command.extend(["--proxy-worker", "--port", str(port), "--output", str(output), "--hosts", hosts])
+    if confdir is not None:
+        command.extend(["--confdir", str(confdir)])
+    return command
 
 
 def default_results_path() -> Path:
@@ -109,18 +102,14 @@ def terminate_process_tree(proc: subprocess.Popen) -> None:
 
 def proxy_self_test() -> bool:
     """Check that the packaged proxy can load the addon and listen locally."""
-    executable = default_mitmdump()
-    if not executable or not (HERE / "capture.py").is_file():
-        return False
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
         port = listener.getsockname()[1]
     with tempfile.TemporaryDirectory() as directory:
         try:
             proc = subprocess.Popen(
-                [executable, "-q", "-s", str(HERE / "capture.py"),
-                 "--set", f"modelprobe_output={Path(directory) / 'results.jsonl'}",
-                 "--listen-host", "127.0.0.1", "--listen-port", str(port)],
+                proxy_command(port, Path(directory) / "results.jsonl", "chatgpt.com,api.openai.com",
+                              Path(directory) / "certificates"),
                 cwd=HERE, env=clean_child_environment(), stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
@@ -248,12 +237,9 @@ class App:
         self.pending = b""
         self.selected_file = default_results_path()
 
-        self.mitmdump_var = tk.StringVar(value=default_mitmdump())
         self.output_var = tk.StringVar(value=str(self.selected_file))
         self.port_var = tk.StringVar(value="8080")
-        self.mode_var = tk.StringVar(value=tr("수동 HTTP 프록시"))
         self.cli_model_var = tk.StringVar(value="")
-        self.target_var = tk.StringVar(value="codex,codex-code-mode-host")
         self.hosts_var = tk.StringVar(value="chatgpt.com,api.openai.com")
         self.status_var = tk.StringVar(value=tr("기존 프록시 결과 감시 중") if self.watch_only else tr("중지됨 · 응답 기록 대기"))
         self.responses_var = tk.StringVar(value="0")
@@ -315,16 +301,9 @@ class App:
         self.config_frame = config
         config.grid_remove()
         config.columnconfigure(1, weight=1)
-        self._field(config, 0, "mitmdump", self.mitmdump_var, self._browse_executable)
+        ttk.Label(config, text=tr("내장 HTTP 프록시 · 프로세스 캡처 드라이버 없음")).grid(
+            row=0, column=0, columnspan=3, sticky="w", pady=4)
         self._field(config, 1, tr("결과 파일"), self.output_var, self._browse_output)
-        ttk.Label(config, text=tr("캡처 방식")).grid(row=2, column=0, sticky="w", padx=(0, 8), pady=4)
-        mode = ttk.Combobox(config, textvariable=self.mode_var, state="readonly", width=31,
-                            values=(tr("수동 HTTP 프록시"), tr("Codex 프로세스 캡처 (실험적)")))
-        mode.grid(row=2, column=1, sticky="w", pady=4)
-        mode.bind("<<ComboboxSelected>>", lambda _event: self._update_mode())
-        ttk.Label(config, text=tr("대상 프로세스")).grid(row=3, column=0, sticky="w", padx=(0, 8), pady=4)
-        self.target_entry = ttk.Entry(config, textvariable=self.target_var)
-        self.target_entry.grid(row=3, column=1, columnspan=2, sticky="ew", pady=4)
         ttk.Label(config, text=tr("수동 프록시 포트")).grid(row=4, column=0, sticky="w", padx=(0, 8), pady=4)
         self.port_entry = ttk.Entry(config, textvariable=self.port_var, width=8)
         self.port_entry.grid(row=4, column=1, sticky="w", pady=4)
@@ -348,7 +327,6 @@ class App:
         self.desktop_button.pack(side="left", padx=6)
         ttk.Button(controls, text=tr("인증서 파일 보기"), command=self.open_certificate).pack(side="left", padx=6)
         ttk.Button(controls, text=tr("캡처 파일 분석"), command=self.open_capture).pack(side="right")
-        self._update_mode()
 
         cards = ttk.Frame(outer)
         cards.grid(row=3, column=0, sticky="ew", pady=14)
@@ -399,15 +377,6 @@ class App:
         ttk.Label(outer, text=tr("모델·reasoning은 실제 요청과 서버 완료 응답에서 읽고, 프로젝트·대화 제목은 로컬 Codex 메타데이터에서 대화 ID로 찾습니다. 연결할 수 없는 정보는 '확인 불가'로 표시합니다."),
                   wraplength=1180, foreground="#4b5563").grid(row=5, column=0, sticky="ew", pady=(10, 0))
 
-    def _update_mode(self):
-        local = self.mode_var.get() == tr("Codex 프로세스 캡처 (실험적)")
-        self.target_entry.configure(state="normal" if local else "disabled")
-        self.port_entry.configure(state="disabled" if local else "normal")
-        self.copy_button.configure(state="disabled" if local else "normal")
-        self.cli_button.configure(state="disabled" if local else "normal")
-        self.desktop_button.configure(state="disabled" if local else "normal")
-        self.cli_model_entry.configure(state="disabled" if local else "normal")
-
     def toggle_advanced(self):
         if self.config_frame.winfo_ismapped():
             self.config_frame.grid_remove()
@@ -431,8 +400,6 @@ class App:
         if codex_desktop_executable() is None:
             messagebox.showerror(tr("Codex 앱 없음"), tr("설치된 Codex 데스크톱 앱의 ChatGPT.exe를 찾지 못했습니다."))
             return
-        self.mode_var.set(tr("수동 HTTP 프록시"))
-        self._update_mode()
         if self.proc is None or self.proc.poll() is not None:
             try:
                 preferred = int(self.port_var.get())
@@ -533,19 +500,12 @@ class App:
         self.stop_proxy()
 
     def _capture_label(self):
-        if self.mode_var.get() == tr("Codex 프로세스 캡처 (실험적)"):
-            return tr("로컬 Codex 프로세스")
         return f"127.0.0.1:{self.port_var.get()}"
 
     def _field(self, parent, row: int, label: str, variable: tk.StringVar, action):
         ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=(0, 8), pady=4)
         ttk.Entry(parent, textvariable=variable).grid(row=row, column=1, sticky="ew", pady=4)
         ttk.Button(parent, text=tr("찾기"), command=action).grid(row=row, column=2, padx=(8, 0), pady=4)
-
-    def _browse_executable(self):
-        path = filedialog.askopenfilename(title=tr("mitmdump 실행 파일 선택"))
-        if path:
-            self.mitmdump_var.set(path)
 
     def _browse_output(self):
         path = filedialog.asksaveasfilename(title=tr("결과 JSONL 파일"), defaultextension=".jsonl")
@@ -570,54 +530,24 @@ class App:
         if self.proc is not None and self.proc.poll() is None:
             return
         self.proc = None
-        executable = Path(self.mitmdump_var.get().strip() or HERE / "mitmdump.exe")
         try:
-            exists = executable.is_file()
-        except OSError as exc:
-            self._proxy_start_error(executable, exc)
+            port = int(self.port_var.get())
+            if not 1 <= port <= 65535:
+                raise ValueError
+        except ValueError:
+            messagebox.showerror(tr("포트 오류"), tr("포트는 1부터 65535까지의 숫자여야 합니다."))
             return
-        if not exists:
-            self._proxy_start_error(executable, FileNotFoundError(str(executable)))
-            return
-        local = self.mode_var.get() == tr("Codex 프로세스 캡처 (실험적)")
-        if local:
-            if not mitmproxy_certificate_trusted():
-                messagebox.showerror(
-                    tr("인증서 신뢰 필요"),
-                    tr("현재 mitmproxy 인증서가 Windows의 신뢰할 수 있는 루트 인증 기관에 없습니다. 먼저 '인증서 파일 보기'에서 현재 사용자 루트 저장소에 설치하세요. 설치 전 캡처를 시작하면 Codex 연결이 끊길 수 있습니다."),
-                )
-                return
-            targets = self.target_var.get().strip()
-            if not targets:
-                messagebox.showerror(tr("대상 오류"), tr("캡처할 프로세스 이름을 입력하세요."))
-                return
-        else:
-            try:
-                port = int(self.port_var.get())
-                if not 1 <= port <= 65535:
-                    raise ValueError
-            except ValueError:
-                messagebox.showerror(tr("포트 오류"), tr("포트는 1부터 65535까지의 숫자여야 합니다."))
-                return
         hosts = self.hosts_var.get().strip()
-        if not hosts:
-            messagebox.showerror(tr("호스트 오류"), tr("캡처할 정확한 호스트를 입력하세요."))
+        try:
+            parse_hosts(hosts)
+        except ValueError:
+            messagebox.showerror(tr("호스트 오류"), tr("호스트는 chatgpt.com, api.openai.com 중에서 선택하세요."))
             return
         self.selected_file = Path(self.output_var.get().strip()).expanduser()
         self.selected_file.parent.mkdir(parents=True, exist_ok=True)
         self._set_tail_start()
         self._reset_live_state()
-        args = [str(executable), "-q", "-s", str(HERE / "capture.py"),
-                "--set", f"modelprobe_output={self.selected_file}",
-                "--set", f"modelprobe_hosts={hosts}"]
-        if local:
-            args.extend(["--mode", f"local:{targets}"])
-            # Let unrelated Codex traffic pass through without interception.
-            for host in (host.strip() for host in hosts.split(",")):
-                if host:
-                    args.extend(["--set", f"allow_hosts={re.escape(host)}"])
-        else:
-            args.extend(["--listen-host", "127.0.0.1", "--listen-port", str(port)])
+        args = proxy_command(port, self.selected_file, hosts)
         try:
             self.proc = subprocess.Popen(
                 args, cwd=HERE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -626,7 +556,7 @@ class App:
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
             )
         except OSError as exc:
-            self._proxy_start_error(executable, exc)
+            self._proxy_start_error(Path(sys.executable), exc)
             return
         threading.Thread(target=self._read_process_output, args=(self.proc,), daemon=True).start()
         self.start_button.configure(state="disabled")
@@ -650,7 +580,7 @@ class App:
             self.status_var.set(tr("프록시 파일 없음 · 보호 기록 확인 필요"))
             messagebox.showerror(
                 tr("프록시 파일을 찾을 수 없음"),
-                tr("프록시 파일이 없습니다: {path}\n\n이전에 WinError 225/226이 표시됐다면 보안 프로그램이 파일을 제거했을 수 있습니다. 먼저 Windows 보안 > 바이러스 및 위협 방지 > 보호 기록을 확인하세요. 탐지 기록이 있으면 GitHub 공지의 보안 검토 결과를 확인하세요. 탐지 기록이 없으면 ZIP 압축 해제 위치와 고급 설정의 실행 파일 경로를 확인하세요.").format(path=executable)
+                tr("프록시 파일이 없습니다: {path}\n\n이전에 WinError 225/226이 표시됐다면 보안 프로그램이 파일을 제거했을 수 있습니다. 먼저 Windows 보안 > 바이러스 및 위협 방지 > 보호 기록을 확인하세요. 탐지 기록이 있으면 GitHub 공지의 보안 검토 결과를 확인하세요. 탐지 기록이 없으면 설치 프로그램으로 앱을 다시 설치하거나, 휴대용 ZIP의 _internal 폴더를 포함한 전체 파일이 있는지 확인하세요.").format(path=executable)
                 + "\n\nhttps://github.com/jinyounghub/codex-model-probe/releases",
             )
         else:
@@ -669,7 +599,7 @@ class App:
         self.quick_stop_button.configure(state="disabled")
         self.desktop_launch_cancel.set()
         self.desktop_relaunch_pending = False
-        self.desktop_button.configure(state="normal" if self.mode_var.get() == tr("수동 HTTP 프록시") else "disabled")
+        self.desktop_button.configure(state="normal")
         if self.proc and self.proc.poll() is None:
             terminate_process_tree(self.proc)
             self.status_var.set(tr("프록시 중지 중"))
@@ -911,6 +841,16 @@ class App:
 
 def main(language: str | None = None):
     global LANGUAGE
+    if len(sys.argv) > 1 and sys.argv[1] == "--proxy-worker":
+        from proxy_runtime import main as proxy_main
+        try:
+            return proxy_main(sys.argv[2:])
+        except Exception as exc:
+            # A windowed executable must not leave a hidden fatal-error dialog
+            # blocking worker shutdown. The parent reads this pipe for status.
+            if sys.stderr is not None:
+                print(f"Proxy failed: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            return 1
     if language is None:
         LANGUAGE = edition_language(sys.executable)
     else:

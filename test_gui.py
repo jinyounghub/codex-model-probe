@@ -25,13 +25,12 @@ class ProxyFailureTests(unittest.TestCase):
         # A previous process may have exited before the next launch fails.
         app.proc = SimpleNamespace(poll=lambda: 1)
         for name, value in {
-            "mitmdump_var": str(directory / "mitmdump.exe"),
-            "mode_var": "수동 HTTP 프록시", "port_var": "8080",
+            "port_var": "8080",
             "hosts_var": "chatgpt.com", "output_var": str(directory / "results.jsonl"),
         }.items():
             setattr(app, name, Mock(get=Mock(return_value=value)))
         for name in ("root", "quick_button", "quick_stop_button", "status_var",
-                     "_update_mode", "_set_tail_start", "_reset_live_state"):
+                     "_set_tail_start", "_reset_live_state"):
             setattr(app, name, Mock())
         return app
 
@@ -39,7 +38,6 @@ class ProxyFailureTests(unittest.TestCase):
         for code in (225, 226):
             with self.subTest(winerror=code), tempfile.TemporaryDirectory() as directory:
                 folder = Path(directory)
-                (folder / "mitmdump.exe").write_text("test placeholder; never executed")
                 app = self.make_app(folder)
                 error = OSError("blocked by security software")
                 error.winerror = code
@@ -59,20 +57,22 @@ class ProxyFailureTests(unittest.TestCase):
     def test_missing_runtime_stops_without_launching_and_mentions_protection_history(self):
         with tempfile.TemporaryDirectory() as directory:
             app = self.make_app(Path(directory))
-            with patch("gui.subprocess.Popen") as popen, patch("gui.messagebox.showerror") as dialog:
+            with patch("gui.subprocess.Popen", side_effect=FileNotFoundError()) as popen, patch("gui.messagebox.showerror") as dialog:
                 app.start_proxy()
-            popen.assert_not_called()
+            popen.assert_called_once()
             self.assertIsNone(app.proc)
             self.assertIn("보호 기록", dialog.call_args.args[1])
-            self.assertIn(str(Path(directory) / "mitmdump.exe"), dialog.call_args.args[1])
+            self.assertIn(gui.sys.executable, dialog.call_args.args[1])
 
-    def test_packaged_gui_keeps_missing_bundle_path_instead_of_falling_back(self):
+    def test_packaged_gui_runs_its_own_restricted_worker_without_external_fallback(self):
         with tempfile.TemporaryDirectory() as directory, \
              patch.dict(os.environ, {}, clear=True), \
              patch.object(gui.sys, "frozen", True, create=True), \
              patch.object(gui, "HERE", Path(directory)), \
              patch("gui.shutil.which") as which:
-            self.assertEqual(gui.default_mitmdump(), str(Path(directory) / "mitmdump.exe"))
+            command = gui.proxy_command(8080, Path(directory) / "result.jsonl", "chatgpt.com")
+            self.assertEqual(command[:2], [gui.sys.executable, "--proxy-worker"])
+            self.assertNotIn("--mode", command)
             which.assert_not_called()
 
 
@@ -149,8 +149,6 @@ class QuickStartTests(unittest.TestCase):
         app.quick_active = False
         app.desktop_relaunch_pending = False
         app.proc = SimpleNamespace(poll=lambda: None)
-        app.mode_var = Mock()
-        app._update_mode = Mock()
         app.quick_button = Mock()
         app.quick_stop_button = Mock()
         app.status_var = Mock()
