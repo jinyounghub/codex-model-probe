@@ -50,9 +50,15 @@ def clean_child_environment() -> dict[str, str]:
 def default_mitmdump() -> str:
     explicit = os.environ.get("CODEX_MODEL_PROBE_MITMDUMP")
     bundled = HERE / "mitmdump.exe"
+    # Retain a selected path even if antivirus removed it; do not silently
+    # substitute a different runtime after a packaged executable disappears.
+    if explicit:
+        return explicit
+    if getattr(sys, "frozen", False):
+        return str(bundled)
     packaged = HERE / ".venv" / "Scripts" / "mitmdump.exe"
     local = HERE.parents[1] / "work" / "mitmproxy-venv" / "Scripts" / "mitmdump.exe"
-    for candidate in (explicit, str(bundled), str(packaged), str(local), shutil.which("mitmdump")):
+    for candidate in (str(bundled), str(packaged), str(local), shutil.which("mitmdump")):
         if candidate and Path(candidate).is_file():
             return str(candidate)
     return ""
@@ -561,9 +567,17 @@ class App:
     def start_proxy(self):
         if self.watch_only:
             return
-        executable = Path(self.mitmdump_var.get().strip())
-        if not executable.is_file():
-            messagebox.showerror(tr("mitmdump 필요"), tr("ZIP의 mitmdump.exe를 GUI 실행 파일과 같은 폴더에 두세요."))
+        if self.proc is not None and self.proc.poll() is None:
+            return
+        self.proc = None
+        executable = Path(self.mitmdump_var.get().strip() or HERE / "mitmdump.exe")
+        try:
+            exists = executable.is_file()
+        except OSError as exc:
+            self._proxy_start_error(executable, exc)
+            return
+        if not exists:
+            self._proxy_start_error(executable, FileNotFoundError(str(executable)))
             return
         local = self.mode_var.get() == tr("Codex 프로세스 캡처 (실험적)")
         if local:
@@ -612,13 +626,36 @@ class App:
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
             )
         except OSError as exc:
-            messagebox.showerror(tr("프록시 실행 실패"), str(exc))
+            self._proxy_start_error(executable, exc)
             return
         threading.Thread(target=self._read_process_output, args=(self.proc,), daemon=True).start()
         self.start_button.configure(state="disabled")
         self.stop_button.configure(state="normal")
         self.quick_stop_button.configure(state="normal")
         self.status_var.set(tr("캡처 시작 중 · {label}").format(label=self._capture_label()))
+
+    def _proxy_start_error(self, executable: Path, error: OSError):
+        self.proc = None
+        self.quick_active = False
+        self.quick_button.configure(state="normal")
+        self.quick_stop_button.configure(state="disabled")
+        if getattr(error, "winerror", None) in (225, 226):
+            self.status_var.set(tr("보안 프로그램이 프록시 실행을 차단했습니다"))
+            messagebox.showerror(
+                tr("프록시 보안 차단"),
+                tr("Windows 보안 프로그램이 프록시 파일을 차단하거나 제거했습니다.\n\n파일: {path}\n오류: {error}\n\nWindows 보안 > 바이러스 및 위협 방지 > 보호 기록에서 이 파일의 탐지명을 확인하세요. 차단이 해결되기 전에는 간편 연결을 사용할 수 없습니다. 보안 검토 결과와 수정 배포본은 GitHub 공지를 확인하세요.").format(path=executable, error=error)
+                + "\n\nhttps://github.com/jinyounghub/codex-model-probe/releases",
+            )
+        elif isinstance(error, FileNotFoundError):
+            self.status_var.set(tr("프록시 파일 없음 · 보호 기록 확인 필요"))
+            messagebox.showerror(
+                tr("프록시 파일을 찾을 수 없음"),
+                tr("프록시 파일이 없습니다: {path}\n\n이전에 WinError 225/226이 표시됐다면 보안 프로그램이 파일을 제거했을 수 있습니다. 먼저 Windows 보안 > 바이러스 및 위협 방지 > 보호 기록을 확인하세요. 탐지 기록이 있으면 GitHub 공지의 보안 검토 결과를 확인하세요. 탐지 기록이 없으면 ZIP 압축 해제 위치와 고급 설정의 실행 파일 경로를 확인하세요.").format(path=executable)
+                + "\n\nhttps://github.com/jinyounghub/codex-model-probe/releases",
+            )
+        else:
+            self.status_var.set(tr("프록시 실행 실패"))
+            messagebox.showerror(tr("프록시 실행 실패"), str(error))
 
     def _read_process_output(self, proc: subprocess.Popen):
         if proc.stdout:

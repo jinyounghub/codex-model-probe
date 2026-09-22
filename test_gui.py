@@ -16,6 +16,66 @@ from gui import (App, clean_child_environment, edition_language, install_current
 from translations import EN, translate
 
 
+class ProxyFailureTests(unittest.TestCase):
+    def make_app(self, directory: Path):
+        app = object.__new__(App)
+        app.watch_only = False
+        app.quick_active = False
+        app.desktop_relaunch_pending = False
+        # A previous process may have exited before the next launch fails.
+        app.proc = SimpleNamespace(poll=lambda: 1)
+        for name, value in {
+            "mitmdump_var": str(directory / "mitmdump.exe"),
+            "mode_var": "수동 HTTP 프록시", "port_var": "8080",
+            "hosts_var": "chatgpt.com", "output_var": str(directory / "results.jsonl"),
+        }.items():
+            setattr(app, name, Mock(get=Mock(return_value=value)))
+        for name in ("root", "quick_button", "quick_stop_button", "status_var",
+                     "_update_mode", "_set_tail_start", "_reset_live_state"):
+            setattr(app, name, Mock())
+        return app
+
+    def test_blocked_launch_does_not_continue_to_certificate_or_relaunch(self):
+        for code in (225, 226):
+            with self.subTest(winerror=code), tempfile.TemporaryDirectory() as directory:
+                folder = Path(directory)
+                (folder / "mitmdump.exe").write_text("test placeholder; never executed")
+                app = self.make_app(folder)
+                error = OSError("blocked by security software")
+                error.winerror = code
+                with patch("gui.subprocess.Popen", side_effect=error) as popen, \
+                     patch("gui.messagebox.showerror") as dialog, \
+                     patch("gui.codex_desktop_executable", return_value=folder / "Codex.exe"), \
+                     patch.object(App, "available_port", return_value=8080), \
+                     patch("gui.install_current_user_ca") as install:
+                    app.quick_start()
+                self.assertIsNone(app.proc)
+                self.assertFalse(app.quick_active)
+                app.root.after.assert_not_called()
+                install.assert_not_called()
+                popen.assert_called_once()
+                self.assertEqual(dialog.call_args.args[0], "프록시 보안 차단")
+
+    def test_missing_runtime_stops_without_launching_and_mentions_protection_history(self):
+        with tempfile.TemporaryDirectory() as directory:
+            app = self.make_app(Path(directory))
+            with patch("gui.subprocess.Popen") as popen, patch("gui.messagebox.showerror") as dialog:
+                app.start_proxy()
+            popen.assert_not_called()
+            self.assertIsNone(app.proc)
+            self.assertIn("보호 기록", dialog.call_args.args[1])
+            self.assertIn(str(Path(directory) / "mitmdump.exe"), dialog.call_args.args[1])
+
+    def test_packaged_gui_keeps_missing_bundle_path_instead_of_falling_back(self):
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.dict(os.environ, {}, clear=True), \
+             patch.object(gui.sys, "frozen", True, create=True), \
+             patch.object(gui, "HERE", Path(directory)), \
+             patch("gui.shutil.which") as which:
+            self.assertEqual(gui.default_mitmdump(), str(Path(directory) / "mitmdump.exe"))
+            which.assert_not_called()
+
+
 class DisplayTests(unittest.TestCase):
     def test_pyinstaller_tcl_paths_are_not_passed_to_children(self):
         with patch.dict(os.environ, {"TCL_LIBRARY": "stale", "TK_LIBRARY": "stale",

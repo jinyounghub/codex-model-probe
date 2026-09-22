@@ -71,9 +71,14 @@ EN = {
     "찾기": "Browse",
     "mitmdump 실행 파일 선택": "Select mitmdump executable",
     "결과 JSONL 파일": "Results JSONL file",
-    "mitmdump 필요": "mitmdump required",
-    "ZIP의 mitmdump.exe를 GUI 실행 파일과 같은 폴더에 두세요.":
-        "Keep mitmdump.exe from the ZIP beside the GUI executable.",
+    "보안 프로그램이 프록시 실행을 차단했습니다": "Security software blocked the proxy",
+    "프록시 보안 차단": "Proxy blocked by security software",
+    "Windows 보안 프로그램이 프록시 파일을 차단하거나 제거했습니다.\n\n파일: {path}\n오류: {error}\n\nWindows 보안 > 바이러스 및 위협 방지 > 보호 기록에서 이 파일의 탐지명을 확인하세요. 차단이 해결되기 전에는 간편 연결을 사용할 수 없습니다. 보안 검토 결과와 수정 배포본은 GitHub 공지를 확인하세요.":
+        "Windows security software blocked or removed the proxy file.\n\nFile: {path}\nError: {error}\n\nCheck this file's detection name in Windows Security > Virus & threat protection > Protection history. Quick connect is unavailable until the block is resolved. Check the GitHub release notice for security review results and a corrected release.",
+    "프록시 파일 없음 · 보호 기록 확인 필요": "Proxy file missing · check Protection history",
+    "프록시 파일을 찾을 수 없음": "Proxy file not found",
+    "프록시 파일이 없습니다: {path}\n\n이전에 WinError 225/226이 표시됐다면 보안 프로그램이 파일을 제거했을 수 있습니다. 먼저 Windows 보안 > 바이러스 및 위협 방지 > 보호 기록을 확인하세요. 탐지 기록이 있으면 GitHub 공지의 보안 검토 결과를 확인하세요. 탐지 기록이 없으면 ZIP 압축 해제 위치와 고급 설정의 실행 파일 경로를 확인하세요.":
+        "Proxy file missing: {path}\n\nIf WinError 225/226 appeared earlier, security software may have removed the file. First check Windows Security > Virus & threat protection > Protection history. If a detection is listed, check the GitHub notice for security review results. If there is no detection, check the ZIP extraction folder and the executable path in advanced settings.",
     "인증서 신뢰 필요": "Certificate trust required",
     "현재 mitmproxy 인증서가 Windows의 신뢰할 수 있는 루트 인증 기관에 없습니다. 먼저 '인증서 파일 보기'에서 현재 사용자 루트 저장소에 설치하세요. 설치 전 캡처를 시작하면 Codex 연결이 끊길 수 있습니다.":
         "The current mitmproxy certificate is not in the Windows Trusted Root store. Use Open certificate file and install it under Current User > Trusted Root Certification Authorities before capture.",

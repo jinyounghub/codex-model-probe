@@ -1,5 +1,7 @@
 # Codex Model Probe: 한글판 사용 설명서
 
+> **2026-09-22 알려진 문제:** v0.3.0에 포함된 `mitmdump.exe`의 Defender 탐지(`Trojan:Win64/WinDivert`)를 확인했습니다. 차단된 PC에서는 간편 연결을 사용할 수 없습니다. 아래 실행 절차를 다시 시도하기 전에 [차단 관련 안내](https://github.com/jinyounghub/codex-model-probe/blob/main/DEFENDER.md#한국어)를 확인하세요. 수정 EXE는 아직 배포하지 않았습니다.
+
 Codex가 **실제 통신에서 요청한 모델과 reasoning effort**, 서버의 **완료 응답 페이로드가 보고한 모델·reasoning effort·토큰 수**, 로컬 대화 제목과 프로젝트명을 실시간으로 나란히 보여주는 Windows 도구입니다. 한 번 검사하고 끝나는 방식이 아니라 프록시와 Codex를 켜둔 동안 계속 기록합니다.
 
 > `최종 응답 모델`은 `response.completed.response.model` 등 서버 완료 페이로드의 문자열입니다. 실제 모델 가중치나 내부 라우팅을 독립적으로 증명하는 값은 아닙니다. 요청과 완료 응답을 연결할 수 없는 경우 요청 모델과 세션 ID는 `확인 불가`로 표시합니다.
@@ -62,7 +64,8 @@ Windows 10/11과 Windows Codex 데스크톱 앱이 필요합니다. **Python 설
 
 | 증상 | 확인할 것 |
 | --- | --- |
-| `mitmdump 필요` | ZIP의 `mitmdump.exe`를 GUI 실행 파일과 같은 폴더에 두었는지 확인 |
+| `WinError 225/226` 또는 `프록시 보안 차단` | 보안 프로그램이 실행을 차단하거나 파일을 제거한 상태. Windows 보안의 보호 기록과 [차단 관련 안내](https://github.com/jinyounghub/codex-model-probe/blob/main/DEFENDER.md#한국어) 확인. 인증서 재설치로 해결되지 않습니다. |
+| `mitmdump 필요` 또는 `프록시 파일을 찾을 수 없음` | 먼저 Windows 보안의 보호 기록 확인. 차단 기록이 없을 때 ZIP 압축 해제 위치와 실행 파일 경로 확인 |
 | `인증서 신뢰 필요` | 간편 연결의 인증서 확인에서 동의했는지 확인. 차단된 경우 고급 설정의 `인증서 파일 보기`로 수동 설치 |
 | Codex 앱이 다시 연결 중 | 프록시가 계속 실행 중인지, 앱이 프록시 환경으로 재시작됐는지 확인. 필요하면 앱을 닫고 프록시를 중지한 뒤 일반 방식으로 재실행 |
 | 표에 새 행이 없음 | 앱/CLI가 새로 프록시로 열렸는지, 실제 응답이 완료됐는지, `호스트` 목록이 맞는지 확인 |
@@ -87,4 +90,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_windows.ps1
 python .\package_release.py
 ```
 
-GUI 소스는 표준 라이브러리로 실행되며, 실시간 캡처에는 같은 폴더의 `capture.py`, `model_probe.py` 및 mitmdump가 필요합니다. 소스에서 GUI를 실행할 때는 `codex_metadata.py`도 같은 폴더에 둡니다. 배포 빌드는 `vendor_mitmdump.py`가 공식 12.2.3 단독 실행 파일을 내려받아 SHA-256을 확인합니다.
+GUI 소스는 표준 라이브러리로 실행되며, 실시간 캡처에는 같은 폴더의 `capture.py`, `model_probe.py` 및 mitmdump가 필요합니다. 소스에서 GUI를 실행할 때는 `codex_metadata.py`도 같은 폴더에 둡니다. 현재 Windows 빌드와 패키징은 보안 검토 전까지 문제의 12.2.3 실행 파일을 다운로드하거나 패키징하기 전에 중단합니다. [DEFENDER.md](DEFENDER.md#한국어)를 참고하세요.

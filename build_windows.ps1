@@ -6,6 +6,8 @@ $python = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $python)) {
     throw 'Run install_mitmproxy.ps1 first. / install_mitmproxy.ps1을 먼저 실행하세요.'
 }
+& $python (Join-Path $PSScriptRoot 'vendor_mitmdump.py')
+if ($LASTEXITCODE -ne 0) { throw 'Runtime distribution is blocked or verification failed. See DEFENDER.md.' }
 & $python -m pip install --quiet --disable-pip-version-check 'pyinstaller==6.22.3'
 if ($LASTEXITCODE -ne 0) { throw 'PyInstaller installation failed.' }
 
@@ -18,6 +20,4 @@ foreach ($language in @('ko', 'en')) {
         (Join-Path $PSScriptRoot 'gui.py')
     if ($LASTEXITCODE -ne 0) { throw "Build failed: $language" }
 }
-& $python (Join-Path $PSScriptRoot 'vendor_mitmdump.py')
-if ($LASTEXITCODE -ne 0) { throw 'Could not verify the official mitmdump binary.' }
 Write-Output (Join-Path $PSScriptRoot 'dist')

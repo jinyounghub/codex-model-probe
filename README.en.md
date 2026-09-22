@@ -1,5 +1,7 @@
 # Codex Model Probe: English user guide
 
+> **Known issue, 2026-09-22:** Defender detected the `mitmdump.exe` bundled in v0.3.0 as `Trojan:Win64/WinDivert`. Quick connect is unavailable on affected PCs. Read the [detection notice](https://github.com/jinyounghub/codex-model-probe/blob/main/DEFENDER.md) before retrying the steps below. No corrected EXE release has been published yet.
+
 This Windows tool continuously displays the **model and reasoning effort requested in the actual Codex network message**, the **model, reasoning effort, and reasoning token usage reported by the server's completed response**, plus locally matched project and conversation labels. It keeps recording while the proxy and Codex remain open.
 
 > “Final response model” means a string from `response.completed.response.model` or another completed server response payload. It does not independently prove which model weights or internal route produced the answer. If the request and completion cannot be paired, the requested model and session ID are shown as `Unknown`.
@@ -62,7 +64,8 @@ Keep the original monitor window open because it owns the proxy. Closing the wat
 
 | Symptom | Check |
 | --- | --- |
-| **mitmdump required** | Keep `mitmdump.exe` from the ZIP beside the GUI EXE. |
+| **WinError 225/226** or **Proxy blocked by security software** | Security software blocked or removed the runtime. Check Windows Security's Protection history and the [detection notice](https://github.com/jinyounghub/codex-model-probe/blob/main/DEFENDER.md). Reinstalling the certificate does not resolve this. |
+| **mitmdump required** or **Proxy file not found** | Check Protection history first. If there is no detection, check the extraction folder and executable path. |
 | **Certificate trust required** | Confirm the certificate prompt in Quick connect. If policy blocks the command, use **Open certificate file** in advanced settings for manual installation. |
 | Codex keeps reconnecting | Check that the proxy is running and Codex was restarted through it. If needed, close Codex, stop the proxy, and start Codex normally. |
 | No new table row | Check that the app/CLI was reopened through the proxy, a response completed, and the **Hosts** field includes the actual host. |
@@ -87,4 +90,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_windows.ps1
 python .\package_release.py
 ```
 
-The GUI itself uses Python's standard library. Live capture requires `capture.py`, `model_probe.py`, and mitmdump in the same extracted folder. Running the GUI from source also requires `codex_metadata.py` beside `gui.py`. Release builds run `vendor_mitmdump.py`, which downloads the official 12.2.3 standalone executable and verifies its SHA-256 hash.
+The GUI itself uses Python's standard library. Live capture requires `capture.py`, `model_probe.py`, and mitmdump in the same extracted folder. Running the GUI from source also requires `codex_metadata.py` beside `gui.py`. Windows release builds and packaging currently stop before downloading or packaging the affected 12.2.3 runtime, pending security review. See [DEFENDER.md](DEFENDER.md).

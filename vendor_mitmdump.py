@@ -15,6 +15,17 @@ OUTPUT = ROOT / "dist" / "mitmdump.exe"
 URL = "https://snapshots.mitmproxy.org/12.2.3/mitmproxy-12.2.3-windows-x86_64.zip"
 SHA256 = "04a01ea95ae96df75058a893e774957d294e69012dab1f4e256ce2b0c6725483"
 MITMDUMP_SHA256 = "36a45aadeb842185b8064b8f0be3730e079c9f9c125bc8be22363332969857bf"
+DISTRIBUTION_HOLD = (
+    "Windows mitmdump 12.2.3 distribution is on hold after a Defender "
+    "Trojan:Win64/WinDivert detection. See DEFENDER.md. "
+    "A reviewed runtime is required before downloading or packaging again."
+)
+
+
+def require_distribution_clearance() -> None:
+    """Keep the affected release from being regenerated while review is pending."""
+    if DISTRIBUTION_HOLD:
+        raise RuntimeError(DISTRIBUTION_HOLD)
 
 
 def file_sha256(path: Path) -> str:
@@ -26,6 +37,7 @@ def file_sha256(path: Path) -> str:
 
 
 def main() -> None:
+    require_distribution_clearance()
     ARCHIVE.parent.mkdir(parents=True, exist_ok=True)
     if not ARCHIVE.is_file():
         print(f"Downloading official mitmproxy 12.2.3: {URL}", flush=True)
