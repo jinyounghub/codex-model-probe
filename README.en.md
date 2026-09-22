@@ -8,7 +8,7 @@ This Windows tool continuously displays the **model and reasoning effort request
 
 ![Actual running GUI comparing requested and final response model, reasoning effort, and token usage, with private fields redacted.](docs/images/live-overview-redacted.png)
 
-An actual capture of the **Korean GUI**; the English edition provides the same features with English labels. **Timestamps, project/conversation labels, and IDs are covered with opaque blocks in the published images.** Pixels outside those blocks, including model names, reasoning, and token counts, are unchanged. The application itself displays the original values when available.
+An actual capture of the **Korean GUI**; the English edition provides the same features with English labels. **Timestamps, project/conversation labels, and IDs are replaced with neutral placeholders and blurred in the published images.** Pixels outside those areas, including model names, reasoning, and token counts, are unchanged. The application itself displays the original values when available.
 
 - **Compare models:** View model strings from the actual request and completed response side by side. Different strings are highlighted as **Values differ**.
 - **Compare reasoning:** Inspect requested and reported effort, together with server-reported reasoning token usage.
@@ -50,7 +50,7 @@ Click **Show advanced settings** for manual proxy controls, port/host/result-fil
 
 ![Actual expanded GUI with timestamps, project and conversation labels, session IDs, thread IDs, and response IDs redacted.](docs/images/live-details-redacted.png)
 
-Scroll horizontally to inspect IDs, transport, and the exact payload evidence field. `REDACTED` labels were added only to these published screenshots.
+Scroll horizontally to inspect IDs, transport, and the exact payload evidence field. The blurred privacy areas were added only to these published screenshots.
 
 | Column | Source and meaning |
 | --- | --- |

@@ -21,9 +21,9 @@ Read model names, reasoning effort, and reasoning token usage from actual networ
 
 ![실제 Codex Model Probe 화면: 요청 모델과 최종 응답 모델, reasoning 및 토큰 수 비교. 개인 식별 영역은 가림. / Actual running Korean GUI with private fields redacted.](docs/images/live-overview-redacted.png)
 
-실제 사용 중 캡처한 **한글판** 화면입니다. 시각·프로젝트·대화 제목과 ID는 공개용 이미지에서 불투명하게 가렸으며, 모델명·reasoning·토큰 수는 원본 그대로입니다. 영문판도 같은 기능을 제공합니다.
+실제 사용 중 캡처한 **한글판** 화면입니다. 시각·프로젝트·대화 제목과 ID는 공개용 이미지에서 익명화한 뒤 블러 처리했으며, 모델명·reasoning·토큰 수는 원본 그대로입니다. 영문판도 같은 기능을 제공합니다.
 
-Actual capture of the **Korean GUI**. Timestamps, project/conversation labels, and IDs are covered in the published images; model names, reasoning, and token counts are unchanged. The English GUI has the same features.
+Actual capture of the **Korean GUI**. Timestamps, project/conversation labels, and IDs are replaced with neutral placeholders and blurred in the published images; model names, reasoning, and token counts are unchanged. The English GUI has the same features.
 
 ## 한눈에 보기 / At a glance
 
@@ -48,9 +48,9 @@ This capture includes differing strings (`gpt-5.6-sol` → `gpt-6-sol`) and matc
 
 ![세션·대화·응답 ID를 가린 실제 상세 화면 / Actual detailed GUI with session, thread, and response IDs redacted.](docs/images/live-details-redacted.png)
 
-가로 스크롤로 ID·통신 방식·최종 페이로드 근거 필드를 볼 수 있습니다. 회색 `REDACTED` 영역은 게시용 이미지에만 적용한 가림 처리입니다.
+가로 스크롤로 ID·통신 방식·최종 페이로드 근거 필드를 볼 수 있습니다. 개인 식별 영역의 블러는 게시용 이미지에만 적용한 가림 처리입니다.
 
-Scroll horizontally to inspect IDs, transport, and the payload evidence field. The gray `REDACTED` blocks were added only to these published screenshots.
+Scroll horizontally to inspect IDs, transport, and the payload evidence field. The blurred privacy areas were added only to these published screenshots.
 
 </details>
 
